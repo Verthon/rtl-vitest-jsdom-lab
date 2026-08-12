@@ -13,6 +13,12 @@
       "skillPath": "plugins/tanstack-query/skills/tanstack-query/SKILL.md",
       "computedHash": "b8a0477cd4d7bf8fa54d27f8e64d82388402f0d502591db50a357df5b9995c75"
     },
+    "tdd": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/engineering/tdd/SKILL.md",
+      "computedHash": "614ac2e45fb0ec02f6ce422d26bd9aa4e33aa4867323f5a3a5c0c20b96f78ff4"
+    },
     "vitest": {
       "source": "antfu/skills",
       "sourceType": "github",
