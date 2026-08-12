@@ -3,7 +3,7 @@ import reactLogo from '@/assets/react.svg'
 import viteLogo from '@/assets/vite.svg'
 import heroImg from '@/assets/hero.png'
 
-export function Component() {
+export function HomePage() {
   const [count, setCount] = useState(0)
 
   return (
@@ -17,7 +17,7 @@ export function Component() {
         <div>
           <h1>Get started</h1>
           <p>
-            Edit <code>src/routing/routes/home.tsx</code> and save to test <code>HMR</code>
+            Edit <code>src/home/HomePage.tsx</code> and save to test <code>HMR</code>
           </p>
         </div>
         <button

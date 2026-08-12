@@ -13,3 +13,6 @@ rules a linter could express.
 - `TESTING_PITFALLS.md` — the current list, one to two sentences each.
 - `DRAFT_FE_TESTING_*.md` — longer, unreviewed explorations of individual
   pitfalls. Draft status: not distilled, not yet turned into skills.
+- `CONVENTIONS.md` — structure, API/mock contract, and verification. Read
+  before writing code.
+- `tasks/NNN-*.md` — scoped work items. Only do the one you are pointed at.

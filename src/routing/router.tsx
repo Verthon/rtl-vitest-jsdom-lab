@@ -1,10 +1,5 @@
 import { createBrowserRouter } from 'react-router'
-import { PageLoader } from '@/components/PageLoader'
+import { homeRoutes } from '@/home/routes'
+import { employeesRoutes } from '@/employee-directory/routes'
 
-export const router = createBrowserRouter([
-  {
-    path: '/',
-    HydrateFallback: PageLoader,
-    lazy: () => import('./routes/home'),
-  },
-])
+export const router = createBrowserRouter([...homeRoutes, ...employeesRoutes])

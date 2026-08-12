@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(npm run dev)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run preview)",
+      "Bash(vite)",
+      "Bash(vite dev)",
+      "Bash(vite preview)",
+      "Bash(npx vite)",
+      "Bash(rtk npm run dev)",
+      "Bash(rtk npm run preview)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.command' | grep -qE '(^|[;&|]|&&|\\|\\|)[[:space:]]*(npx[[:space:]]+|bunx[[:space:]]+)?vite([[:space:]]|$)|run[[:space:]]+(dev|preview)([[:space:]]|$)' && printf '%s' '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"Dev server is blocked in this repo. Verification is: npm run build, npm run test:unit, npm run lint, npm run scan:dead-code. If a change cannot be verified by those four, it needs a test — not a browser. See CONVENTIONS.md.\"}}' || true",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

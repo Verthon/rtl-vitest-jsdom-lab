@@ -1,6 +1,6 @@
 import type { HttpHandler } from 'msw'
 import { createExampleHandlerMocks } from './example.handlers'
-import { createEmployeesHandlerMocks } from '@/features/employees/mocks'
+import { createEmployeesHandlerMocks } from '@/employee-directory/mocks'
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? ''
 
