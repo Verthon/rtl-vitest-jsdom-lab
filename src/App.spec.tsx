@@ -5,7 +5,7 @@ function Bomb(): never {
   throw new Error('Boom: this component always throws')
 }
 
-describe('App', () => {
+describe('app', () => {
   it('renders the error boundary fallback when a component throws while rendering', () => {
     render(
       <ErrorBoundary>

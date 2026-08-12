@@ -1,5 +1,6 @@
-import { renderHook } from '@testing-library/react'
+import { renderHook, waitFor } from '@testing-library/react'
 import { useLocation } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
 import { TestAppProviders } from './TestAppProviders'
 
 describe('TestAppProviders', () => {
@@ -21,5 +22,15 @@ describe('TestAppProviders', () => {
     })
 
     expect(result.current.pathname).toBe('/about')
+  })
+
+  it('gives hooks access to a query client', async () => {
+    const { result } = renderHook(
+      () => useQuery({ queryKey: ['greeting'], queryFn: () => Promise.resolve('hello') }),
+      { wrapper: TestAppProviders },
+    )
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(result.current.data).toBe('hello')
   })
 })
