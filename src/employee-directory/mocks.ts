@@ -57,12 +57,16 @@ export function createEmployeesHandlerMocks(baseUrl: string): HttpHandler[] {
       const url = new URL(request.url)
       const page = Number(url.searchParams.get('page') ?? 1)
       const perPage = Number(url.searchParams.get('perPage') ?? 10)
+      const q = url.searchParams.get('q') ?? undefined
+      const filtered = q
+        ? mockEmployees.filter((employee) => employee.name.toLowerCase().includes(q.toLowerCase()))
+        : mockEmployees
       const start = (page - 1) * perPage
       return HttpResponse.json({
-        data: mockEmployees.slice(start, start + perPage),
+        data: filtered.slice(start, start + perPage),
         page,
         perPage,
-        total: mockEmployees.length,
+        total: filtered.length,
       })
     }),
   ]

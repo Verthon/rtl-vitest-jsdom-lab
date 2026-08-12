@@ -11,6 +11,8 @@ import {
   TableCell,
 } from '@/components/ui/table'
 import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Pagination,
   PaginationContent,
@@ -20,11 +22,14 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination'
 import { employeesQueryOptions, PER_PAGE } from './api'
+import { useDebouncedValue } from './useDebouncedValue'
 
 export function EmployeesPage() {
   const [page, setPage] = useState(1)
+  const [rawQuery, setRawQuery] = useState('')
+  const debouncedQuery = useDebouncedValue(rawQuery, 300)
   const { data, isPending, isError, error, isPlaceholderData } = useQuery(
-    employeesQueryOptions(page),
+    employeesQueryOptions(page, debouncedQuery || undefined),
   )
 
   if (isPending) {
@@ -57,6 +62,19 @@ export function EmployeesPage() {
   return (
     <section className="p-4">
       <h1 className="text-lg font-medium">Employees</h1>
+
+      <div className="mt-4 flex flex-col gap-1.5">
+        <Label htmlFor="employee-name-filter">Filter by name</Label>
+        <Input
+          id="employee-name-filter"
+          className="max-w-xs"
+          value={rawQuery}
+          onChange={(event) => {
+            setRawQuery(event.target.value)
+            setPage(1)
+          }}
+        />
+      </div>
 
       {isEmpty ? (
         <Empty className="mt-4">

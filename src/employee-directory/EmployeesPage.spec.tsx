@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TestAppProviders } from '@/testsConfig/TestAppProviders'
 import { mockNetworkError, mockResponse } from '@/testsConfig/mockResponse'
@@ -19,7 +19,18 @@ async function findRowByName(name: string) {
   return (await screen.findByRole('cell', { name })).closest('tr')
 }
 
+function setupFakeTimerUser() {
+  vi.useFakeTimers()
+  Object.assign(globalThis, { jest: { advanceTimersByTime: vi.advanceTimersByTime } })
+  return userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+}
+
 describe('EmployeesPage', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+    Reflect.deleteProperty(globalThis, 'jest')
+  })
+
   it('shows the first page of employees', async () => {
     renderPage()
 
@@ -112,6 +123,99 @@ describe('EmployeesPage', () => {
     renderPage()
 
     expect(await screen.findByText('Failed to load employees')).toBeInTheDocument()
+  })
+
+  it('shows what the user typed in the filter field', async () => {
+    const user = userEvent.setup()
+    renderPage()
+
+    await findRowByName(mockEmployees[0].name)
+    const filterField = screen.getByRole('textbox', { name: /name/i })
+    await user.type(filterField, 'Ada')
+
+    expect(filterField).toHaveValue('Ada')
+  })
+
+  it('filters the table by name after the debounce elapses', async () => {
+    renderPage()
+    await findRowByName(mockEmployees[0].name)
+
+    const user = setupFakeTimerUser()
+    const filterField = screen.getByRole('textbox', { name: /name/i })
+    await user.type(filterField, 'grace hopper')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    await findRowByName('Grace Hopper')
+    expect(dataRows()).toHaveLength(1)
+  })
+
+  it('does not refetch until typing stops', async () => {
+    renderPage()
+    await findRowByName(mockEmployees[0].name)
+
+    const requests: Array<string | null> = []
+    const onRequest = ({ request }: { request: Request }) => {
+      requests.push(new URL(request.url).searchParams.get('q'))
+    }
+    server.events.on('request:start', onRequest)
+
+    const user = setupFakeTimerUser()
+    const filterField = screen.getByRole('textbox', { name: /name/i })
+
+    for (const char of 'Grace Hopper') {
+      await user.type(filterField, char)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100)
+      })
+    }
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    server.events.removeListener('request:start', onRequest)
+
+    const filteredRequests = requests.filter(Boolean)
+    expect(filteredRequests).toStrictEqual(['Grace Hopper'])
+  })
+
+  it('returns to the first page when the filter changes', async () => {
+    const clickUser = userEvent.setup()
+    renderPage()
+
+    await findRowByName(mockEmployees[0].name)
+    await clickUser.click(screen.getByRole('button', { name: '3' }))
+    await findRowByName(mockEmployees[20].name)
+
+    const user = setupFakeTimerUser()
+    const filterField = screen.getByRole('textbox', { name: /name/i })
+    await user.type(filterField, 'an')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    await screen.findByText('Showing 1–10 of 13')
+    expect(screen.getByRole('button', { name: 'Go to previous page' })).toBeDisabled()
+  })
+
+  it('shows the empty state when no employee matches', async () => {
+    renderPage()
+    await findRowByName(mockEmployees[0].name)
+
+    const user = setupFakeTimerUser()
+    const filterField = screen.getByRole('textbox', { name: /name/i })
+    await user.type(filterField, 'Zzz')
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    await screen.findByText('No employees found.')
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
   })
 
   it('shows the loading state until a delayed response arrives', async () => {
