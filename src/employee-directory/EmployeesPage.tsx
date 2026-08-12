@@ -10,12 +10,7 @@ import {
   TableHead,
   TableCell,
 } from '@/components/ui/table'
-import {
-  Empty,
-  EmptyHeader,
-  EmptyTitle,
-  EmptyDescription,
-} from '@/components/ui/empty'
+import { Empty, EmptyHeader, EmptyTitle } from '@/components/ui/empty'
 import {
   Pagination,
   PaginationContent,
@@ -57,43 +52,21 @@ export function EmployeesPage() {
   const lastPage = Math.max(1, Math.ceil(total / PER_PAGE))
   const rangeStart = total === 0 ? 0 : (page - 1) * PER_PAGE + 1
   const rangeEnd = Math.min(page * PER_PAGE, total)
-
-  const goToPage = (nextPage: number) => {
-    if (nextPage < 1) return
-    setPage(nextPage)
-  }
+  const isEmpty = data.data.length === 0
 
   return (
     <section className="p-4">
       <h1 className="text-lg font-medium">Employees</h1>
 
-      {data.data.length === 0 ? (
-        <>
-          <Empty className="mt-4">
-            <EmptyHeader>
-              <EmptyTitle>No employees found</EmptyTitle>
-              <EmptyDescription>No employees found.</EmptyDescription>
-            </EmptyHeader>
-          </Empty>
-          <Pagination className="mt-2">
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  href="#"
-                  aria-disabled={page === 1}
-                  onClick={(event) => {
-                    event.preventDefault()
-                    if (page === 1) return
-                    goToPage(page - 1)
-                  }}
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
-        </>
+      {isEmpty ? (
+        <Empty className="mt-4">
+          <EmptyHeader>
+            <EmptyTitle>No employees found.</EmptyTitle>
+          </EmptyHeader>
+        </Empty>
       ) : (
         <>
-          <Table className="mt-4" aria-busy={isPlaceholderData}>
+          <Table className="mt-4">
             <TableHeader>
               <TableRow>
                 <TableHead>Name</TableHead>
@@ -117,49 +90,36 @@ export function EmployeesPage() {
           <p className="mt-2 text-sm text-muted-foreground">
             Showing {rangeStart}–{rangeEnd} of {total}
           </p>
-
-          <Pagination className={isPlaceholderData ? 'mt-2 opacity-50' : 'mt-2'}>
-            <PaginationContent>
-              <PaginationItem>
-                <PaginationPrevious
-                  href="#"
-                  aria-disabled={page === 1}
-                  onClick={(event) => {
-                    event.preventDefault()
-                    if (page === 1) return
-                    goToPage(page - 1)
-                  }}
-                />
-              </PaginationItem>
-              {Array.from({ length: lastPage }, (_, index) => index + 1).map((pageNumber) => (
-                <PaginationItem key={pageNumber}>
-                  <PaginationLink
-                    href="#"
-                    isActive={pageNumber === page}
-                    onClick={(event) => {
-                      event.preventDefault()
-                      goToPage(pageNumber)
-                    }}
-                  >
-                    {pageNumber}
-                  </PaginationLink>
-                </PaginationItem>
-              ))}
-              <PaginationItem>
-                <PaginationNext
-                  href="#"
-                  aria-disabled={page * PER_PAGE >= total}
-                  onClick={(event) => {
-                    event.preventDefault()
-                    if (page * PER_PAGE >= total) return
-                    goToPage(page + 1)
-                  }}
-                />
-              </PaginationItem>
-            </PaginationContent>
-          </Pagination>
         </>
       )}
+
+      <Pagination className="mt-2">
+        <PaginationContent>
+          <PaginationItem>
+            <PaginationPrevious
+              disabled={page === 1 || isPlaceholderData}
+              onClick={() => setPage(page - 1)}
+            />
+          </PaginationItem>
+          {Array.from({ length: lastPage }, (_, index) => index + 1).map((pageNumber) => (
+            <PaginationItem key={pageNumber}>
+              <PaginationLink
+                isActive={pageNumber === page}
+                disabled={isPlaceholderData}
+                onClick={() => setPage(pageNumber)}
+              >
+                {pageNumber}
+              </PaginationLink>
+            </PaginationItem>
+          ))}
+          <PaginationItem>
+            <PaginationNext
+              disabled={page >= lastPage || isPlaceholderData}
+              onClick={() => setPage(page + 1)}
+            />
+          </PaginationItem>
+        </PaginationContent>
+      </Pagination>
     </section>
   )
 }
