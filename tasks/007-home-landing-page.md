@@ -59,17 +59,19 @@ it('links to the employee directory', () => {
   render(<HomePage />, { wrapper: TestAppProviders })
 
   expect(
-    screen.getByRole('link', { name: /employee directory/i }),
+    screen.getByRole('link', { name: 'Open directory' }),
   ).toHaveAttribute('href', '/employees')
 })
 ```
 
 `TestAppProviders` is required — `Link` throws outside a router context.
 
-The accessible name comes from the card's link. If the visible link text is
-`Open directory`, the name will not match `/employee directory/i`; either query
-by the text that is actually there or make the whole card the link. Decide, then
-make the query match reality — do not weaken the regex until something passes.
+**The link lives inside the card; the card is not itself a link.** The `Link`'s
+visible text is `Open directory`, so that — not the card title — is its
+accessible name. Query it by that exact name. Do not widen the query to
+`/employee directory/i` and do not wrap the whole `<Card>` in the `Link` to make
+a looser regex match; wrapping nests the card heading inside a link, which is a
+weaker a11y shape and makes `Open directory` redundant decoration.
 
 Add a second assertion for the heading:
 
@@ -145,10 +147,16 @@ assistive tech and to a role query.
 All four commands pass:
 
 ```bash
-npm run build && npm run test:unit && npm run lint && npm run scan:dead-code
+npm run build && npx vitest run src && npm run lint && npm run scan:dead-code
 ```
 
-`scan:dead-code` has a known dirty baseline (HANDOFF open item 3: `dialog.tsx`
-plus vendored exports). This task should make it *shorter*, not longer — the
+**Note the `src` scope — that is deliberate, do not widen it to
+`npm run test:unit`.** The `lab/` directory is a separate diagnostics workstream
+included by the `vite.config.ts` glob; specs there are edited interactively and
+are expected to fail or time out. A red `lab/` spec is not your regression and
+is never yours to fix. Gate on `src` only.
+
+`scan:dead-code` has a known dirty baseline (`dialog.tsx` plus vendored exports;
+see the knip item in HANDOFF's *Open* list). This task should make it *shorter*, not longer — the
 deleted assets drop out. If `card.tsx` appears as unused, your page is not
 importing it and the grid is not real; fix that rather than ignoring it.

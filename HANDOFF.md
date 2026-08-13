@@ -1,222 +1,356 @@
-# Handoff — 2026-08-12 (session 2)
+# Handoff — 2026-08-13
 
 Read `AGENTS.md` (why the repo exists) and `CONVENTIONS.md` (how to work in it)
 first. This file is where we resume.
 
 ## Resume here
 
-**First: review 005.** It is green but unreviewed. Sonnet executed it this
-session and hit a genuine tooling wall on the fake-timer scenario; the
-investigation is written up in `DEBUG_005_fake_timers.md`. Read that file before
-touching any fake-timer test in this repo. Assessment checklist is below.
-
-**Then: 006 or 007**, both written and ready. 007 is independent of everything
-and can go first if you want a quick win.
+**005 is reviewed, accepted, and its two review findings are applied.** Nothing
+blocks 006 or 007 — both were audited and patched, and both are ready for
+Sonnet. 007 is independent and is the quicker win.
 
 | Task | State |
 |---|---|
-| `tasks/005-debounced-filter.md` | Executed, green, **needs review** |
-| `tasks/006-url-search-param-state.md` | Written, not started. Depends on 005 |
-| `tasks/007-home-landing-page.md` | Written, not started. Independent |
+| `tasks/005-debounced-filter.md` | Executed, reviewed, accepted. Both review findings applied |
+| `tasks/006-url-search-param-state.md` | Ready. Audited and patched. Depends on 005 |
+| `tasks/007-home-landing-page.md` | Ready. Audited and patched. Independent |
+| `tasks/008-assertion-precision-skill.md` | Yours, written in parallel. **Not audited by me** — do not assume it got the 006/007 treatment |
 
-**Verification right now:** `npm run test:unit` → 20 tests, 4 files, all pass.
-Other three commands not re-run since 005 landed — run all four before review.
+**Verification at close of session:** `src` is 20/20 green, the full
+`test:unit` is 70/70 across 6 files, build and lint pass, and knip reports its
+long-standing baseline unchanged — one unused file
+(`src/components/ui/dialog.tsx`) plus the vendored exports.
 
 ```bash
-npm run build && npm run test:unit && npm run lint && npm run scan:dead-code
+npm run build && npx vitest run src && npm run lint && npm run scan:dead-code
 ```
 
-Uncommitted: everything since `5643655`.
+> **Gate on `npx vitest run src`, not `npm run test:unit`.** `test:unit` also
+> picks up `lab/**` through the `vite.config.ts` glob, and `lab/` is a
+> diagnostics workstream edited interactively — scratch specs appear, fail or
+> time out, and get deleted again within minutes. It happened during this
+> session: a `_scratch-` probe went red for a few minutes (30 sequential oxlint
+> spawns at ~213ms against a 5000ms default — arithmetic, not a hang) and was
+> gone by the end.
+>
+> The hazard is not the red itself, it is what an executor does about it. A
+> failing `lab/` spec is never yours to fix as part of an app task, and a red
+> `test:unit` is not evidence you broke something. Both `lab/` files and `src`
+> files can be green at any given moment; only `src` is a signal.
 
-## Reviewing 005 — the fast path
+**Uncommitted — three independent workstreams, nothing committed this session:**
 
-The feature works. Filter is a server param, debounced 300ms, resets page to 1.
-Spot-check these, in order of how likely they are to be wrong:
+| Workstream | Files |
+|---|---|
+| Fake-timer shim + 005 strengthening | `src/testsConfig/fakeTimers.ts` (new), `src/testsConfig/setup.ts`, `src/employee-directory/EmployeesPage.spec.tsx` |
+| `lab/` diagnostics | `lab/` (new), `tsconfig.lab.json` (new), `tsconfig.json`, `vite.config.ts`, `AGENTS.md` |
+| Docs and tasks | `HANDOFF.md`, `tasks/006`, `tasks/007`, `tasks/008` (new) |
 
-1. **`DEBUG_005_fake_timers.md` is the main artifact.** Read it first — it
-   explains why every fake-timer test in `EmployeesPage.spec.tsx` calls
-   `setupFakeTimerUser()` instead of the pattern the task prescribed.
+> **Hazard while the tree stays dirty.** 006 step 9 tells you to break the code,
+> confirm the test reddens, then revert. **Do not revert with `git checkout` or
+> `git restore`** — three unrelated workstreams are uncommitted here and those
+> commands would silently destroy them. Undo mutations by hand, or copy the file
+> aside first (that is how this session's two mutation checks were run). This
+> note dies the moment the tree is committed.
 
-2. **The `jest` shim.** `EmployeesPage.spec.tsx:22-26` stubs a global `jest`
-   object so RTL will pump vitest's fake timers. Verified this session against
-   `node_modules/@testing-library/react/dist/pure.js:62` — `jestFakeTimersAreEnabled()`
-   really does gate on `typeof jest !== 'undefined'`, which vitest never
-   satisfies. The diagnosis is correct, the shim is scoped, and `afterEach`
-   deletes it. **Open question for you:** does this belong in
-   `testsConfig/setup.ts` rather than duplicated per spec file? 006 needs the
-   same shim, so it will get copied on the next task unless it moves.
+Note `e6cc293` is mislabelled *"employee-directory url based pagination"*. It is
+005, the debounced filter. 006 is the URL work and has not started.
 
-3. **`useDebouncedValue` is a value-debounce built on `useEffect`.** Correct per
-   005. Note 006 deletes it and replaces it with `useDebouncedCallback` — that
-   is a settled decision in the 006 task file, not a defect here.
+## What happened this session
 
-4. **Mutation checks were run.** Table at the bottom of the debug log, seven
-   mutations, all confirmed reddening. Two honest caveats recorded there: the
-   slice-before-filter mutation reddened via a corrupted `total` rather than the
-   intended mechanism, and the case-sensitivity mutation required changing the
-   test input to `'grace hopper'` to be caught directly. Both are disclosed
-   rather than papered over — that is the behavior we want.
+*Two working sessions on the same day. This first block is the later one, which
+was a short blocker-clearing pass; everything below it is the earlier design and
+audit work.*
 
-5. **Known gap, carried from the task:** empty `q` sent as `''` vs `undefined`
-   has no behavioral gate. `EmployeesPage.tsx:32` uses `debouncedQuery ||
-   undefined`, which is correct. Nothing would catch a regression.
+**Both 005 review findings were applied and mutation-checked** — see the section
+below, which now records the evidence rather than the proposal.
 
-6. **The flaky delay test is still there** — `shows the loading state until a
-   delayed response arrives` still races a real `setTimeout(50)` against a 100ms
-   helper delay. 005 explicitly left it alone. Now that the fake-timer pattern
-   works, it could be converted. Still open.
+**The test gate moved from `npm run test:unit` to `npx vitest run src`**, in
+006's and 007's *Done* sections and in this file. `lab/` shares the vitest
+include glob and is edited interactively, so `test:unit` is red at arbitrary
+times for reasons unrelated to any app task. The risk was not the red itself but
+what an executor does about it — the natural move is to "fix" the failing file,
+which would mean editing a live diagnostics scratch buffer.
 
-## What landed in 005
+**Numeric cross-references into this file's *Open* list had drifted, repo-wide.**
+Both 006 and 007 cited *"open item 3"* for the knip baseline when knip was item
+4, and 006 step 6 cited *"open item 1"* for the empty-branch claim — an item that
+no longer exists in the list at all. `tasks/005` carries three more (items 1, 2,
+3), left alone since it is executed and closed. Fixed in 006/007 by stating the
+substance inline instead of pointing at an ordinal. See the new method note.
 
-- `mocks.ts` — handler reads `q`, filters by case-insensitive substring on
-  `name`, **then** paginates. `total` is the filtered count.
-- `api.ts` — `employeesQueryOptions(page, q?)`, key `['employees', page, q]`.
-- `useDebouncedValue.ts` — new, generic, no spec file (below both seams, by
-  design).
-- `EmployeesPage.tsx` — labelled `Input`, `rawQuery` state, debounced value into
-  the query, `setPage(1)` in the same `onChange`.
-- `EmployeesPage.spec.tsx` — five new scenarios; `input.tsx` + `label.tsx` added
-  from shadcn.
+**Deliberately not done:** committing the working tree — your call, deferred to
+open item 1. Consequence recorded as the revert hazard above.
 
-## The fake-timer finding, in one paragraph
+**The fake-timer shim moved and is now documented.**
+`src/testsConfig/fakeTimers.ts` exports `setupFakeTimerUser()` and
+`restoreRealTimers()`. The JSDoc carries the symptom, the root cause, the three
+upstream issue links, and the five confirmed dead ends, so nobody re-runs that
+investigation. `restoreRealTimers()` runs in `setup.ts`'s global `afterEach` — a
+leaked fake clock fails the *next* test, which is not a hook worth letting a
+task forget to copy. `EmployeesPage.spec.tsx` lost its local helper and its
+`afterEach`. Also added `.bind(vi)`, which the original was missing.
 
-Every `userEvent` call routes through RTL's `asyncWrapper`, which drains the
-microtask queue with an internal `setTimeout(resolve, 0)` and only advances that
-timer when it detects Jest. Under `vi.useFakeTimers()` in vitest, that timer is
-faked and nothing advances it, so **every `user.type()` / `user.click()` hangs
-forever** — regardless of `delay`, `advanceTimers`, or `act`. Workaround is a
-stubbed `globalThis.jest.advanceTimersByTime`. Dead ends already ruled out (do
-not retry): `delay: null`, async-wrapped `advanceTimers`, narrowing `toFake`,
-`MessageChannel` polyfills, and enabling fake timers before the initial render.
+**Upstream was checked, and the shim survives it.** Two searches and two fetches,
+maybe five minutes:
 
-This is a strong candidate for `TESTING_PITFALLS.md` — it is common, invisible,
-and not linter-detectable. The debug log deliberately does not distill it; that
-is a separate decision.
+- [RTL #1197](https://github.com/testing-library/react-testing-library/issues/1197)
+  — **open**, unresolved. Our root cause exactly, traced upstream to the PR that
+  added the microtask drain in RTL 14. No maintainer fix, no plan.
+- [vitest #3184](https://github.com/vitest-dev/vitest/issues/3184) — **closed as
+  not planned.** Vitest declines ownership. It is where the `globalThis.jest`
+  stub circulates.
+- [user-event #833](https://github.com/testing-library/user-event/issues/833) —
+  the `userEvent.click` timeout symptom.
+
+So: the diagnosis was right, the shim is the canonical community workaround
+rather than an invention, and RTL 16.3.2 being latest means **this is permanent,
+not pending a version bump.** The one documented alternative,
+`configure({ asyncWrapper: cb => cb() })`, is worse — it discards RTL's
+act-environment toggling, not just the timer pump.
+
+**The caveated mutation is closed.** A surgical slice-before-filter — slice
+first, but keep `total` honest for the unfiltered case — reddens *exactly*
+`returns to the first page when the filter changes` (`Showing 1–2 of 2` vs
+`Showing 1–10 of 13`) and nothing else. `DEBUG_005_fake_timers.md`'s note that it
+only reddened via a corrupted `total` no longer applies.
+
+## 005 review — two findings, applied
+
+Both landed directly in `EmployeesPage.spec.tsx` (test-only, ~10 lines). Both
+were mutation-checked **two ways** — the mutation is red under the new version
+*and* confirmed green under the old one, which is what proves the fix was
+load-bearing rather than merely different.
+
+Rejected: folding them into 006. Step 8 of that task says *"005's page tests
+should survive unchanged — if one needs editing, stop and explain why"*, and
+that guard is what catches silent behavior drift during the migration. Handing
+Sonnet an instruction to edit two 005 tests alongside it would have blunted it.
+
+1. **`filters the table by name` used a fixture that made half its assertion
+   vacuous.** Grace Hopper is `mockEmployees[0]` — already row 1 of the
+   unfiltered page, so `findRowByName('Grace Hopper')` asserted nothing and a
+   **client-side** filter over the fetched page passed it. Now types
+   `lynn conway` and looks for `Lynn Conway` (index 26, page 3, unique).
+
+   Mutation: drop `q` from the request and filter `data.data` client-side.
+   **Green** under `Grace Hopper`, **red** under `Lynn Conway`. The comment in
+   the test says why that name was chosen, so nobody "tidies" it back.
+
+2. **`filter(Boolean)` masked the `q=''` gap.** The MSW listener now registers
+   *before* `renderPage()` and the assertion is
+   `toStrictEqual([null, 'Grace Hopper'])` — `null` is param-absent, `''` is
+   present-but-empty, and keeping the mount request is what distinguishes them.
+
+   Mutation: `employeesQueryOptions(page, debouncedQuery)` — i.e. drop the
+   `|| undefined`. Reddens with `expected [ '', 'Grace Hopper' ] to strictly
+   equal [ null, 'Grace Hopper' ]`, which names the defect in the failure
+   message itself. Verified this assertion still holds under 006: the test
+   stays on page 1, so the mount request remains the only extra one.
+
+## 006 and 007 — audit results
+
+Both were read end-to-end against the code this session and patched in place.
+
+**007 had one blocker, now fixed.** Step 2's example test queried
+`getByRole('link', { name: /employee directory/i })` while Decisions pinned the
+link text to `Open directory` — the prescribed test could not pass a correct
+implementation. The task then offered a menu to resolve it, which is the 003
+failure mode the method section declares retired. **Pinned:** the `Link` lives
+inside the card with visible text `Open directory`, and the spec queries that
+exact name. Whole-card-as-link is explicitly ruled out.
+
+Verified while auditing: `App.spec.tsx` never touches `HomePage` (no collateral
+damage), and `src/styles/globals.css` has no `.hero` / `.ticks` / `.counter` /
+`#center` rules, so the task's "they are dead strings" claim holds.
+
+**006 had two blockers, now fixed.**
+
+1. **Step 7 sent Sonnet straight back into the wall.** It prescribed the raw
+   `userEvent.setup({ advanceTimers: vi.advanceTimersByTime })` pattern and said
+   "re-read 005 step 4" — 005 step 4's snippet is precisely the one that hangs
+   for 5000ms with no stack trace. Now points at `setupFakeTimerUser()`, says to
+   ignore 005 step 4, and notes cleanup is global.
+
+2. **`useDebouncedCallback` needs a latest-ref, and the task never said so.**
+   `setSearchParams` is memoized on `[navigate, searchParams]`
+   (`react-router/dist/development/lib/dom/lib.js:760-764`), so a "stable"
+   debounced callback capturing it at mount permanently closes over mount-time
+   params and computes its "current" URL from first render. Pinned as a
+   decision, with the gap declared: **no scenario in 006 catches it.** Step 7's
+   assertion is "no `page` key", and a stale base that never had `page`
+   satisfies it for the wrong reason. Same status as push-vs-replace.
+
+Also patched: a note that mutating the callback's params object *is* safe
+(react-router passes `new URLSearchParams(searchParams)`, `lib/dom/lib.js:761`)
+so nobody "fixes" a non-bug; and the two remaining unpinned menus — step 5's
+deep-link case is now its own `it`, and the empty-`q` mutation row now names a
+concrete assertion instead of "or add an assertion".
+
+**Carried into 006 from the 005 review:** on page 3, the first keystroke fires an
+unfiltered page-1 request instantly, because `onChange` calls `setPage(1)` while
+`debouncedQuery` still holds the old value. 006 dissolves this — `page` comes
+from the URL and has no setter — so it needs no action, but do not be surprised
+when a request disappears.
+
+## `lab/` — new workstream, in flight
+
+Not part of 005/006/007 and not mine; landed in parallel. `lab/` is in the vitest
+include glob (`lab/**/*.spec.ts`), which is why `test:unit` reports far more than
+`src`'s 20 tests — and why it is no longer the gate (see above).
+
+**It is actively being edited, so treat its state as volatile.** At the close of
+this session it held two `_scratch-*` probes alongside the settled files, and one
+of them was failing. That is expected. The `_scratch-` prefix is worth keeping as
+the convention for "in-flight, may be red, not anyone else's to fix".
+
+It mechanizes the admission gate `AGENTS.md` states in prose — *a mistake
+belongs here only if it is not mechanically detectable*:
+
+- `lintTestRules(assertions)` writes a synthesized probe spec to a temp dir,
+  shells `oxlint` at it with the `vitest` / `jest` / `testing-library` plugins,
+  and returns the rule codes that fired. `lint-coverage.spec.ts` then asserts,
+  per assertion shape, **which ones the linter already rejects** —
+  `prefer-to-have-length`, `prefer-to-contain`, `prefer-comparison-matcher`, and
+  so on. That turns "the linter already catches this" from a judgement call into
+  a test, and it means the pitfall list can be *proved* disjoint from the lint
+  rules rather than asserted to be.
+- `failureOf(assertion)` returns the failure message plus inspected
+  `actual`/`expected` instead of a boolean. That lets a draft argue about
+  **diagnostic quality** — a coarse assertion that fails with a useless message
+  is a real pitfall even when it does fail.
+- The specimens are built to trip specific traps — a `NaN` total, `0.1 + 3.2`,
+  `Set`/`Map`, two `Date`s an hour apart, an empty string, a `null` widened to
+  `string`. They live inline in `assertion-precision.spec.ts`, one per `it`, not
+  in a shared fixtures module. (An earlier draft of this handoff claimed a
+  `lab/assertions/fixtures.ts`; there is no such file.)
+- `MATRIX.md` is the readable output: which matcher to reach for per data type,
+  and how much of that choice oxlint already enforces, with every row backed by
+  one of the two specs. This is the artifact the skill gets distilled from.
+
+Bearing on the testing-skill item below: this is the most concrete progress yet toward
+distilling `DRAFT_FE_TESTING_ASSERTION_PRECISION.md` into a skill, since it
+supplies the evidence for what the skill should *not* bother saying.
+
+## The skill — evidence-first. Decided.
+
+**A pitfall earns an enforced rule only when this repo holds a mutation-checked
+instance of it.** Everything else stays prose in `TESTING_PITFALLS.md` until the
+app grows into it. This is the same standard the method section already applies
+to tests, extended to the skill: *green is not evidence, and neither is a
+well-argued essay.*
+
+**This inverts the pipeline that was assumed until now.** The plan had been to
+distill 13 drafts down into rules. Instead, start from the evidence and let it
+select which pitfalls get rules first. Two reasons:
+
+1. **The drafts predate the tests.** All 13 were written 2026-08-12, when the
+   repo had no app specs. They are generic FE-testing essays structured as
+   *problem / mechanism / tell / verification move / questions / who pays*. Only
+   the last two sections convert into anything an agent can apply; the rest is
+   justification aimed at a human reader.
+2. **The repo has since overtaken them.** Three findings now carry mutation
+   evidence, and each is a worked instance of a draft that has none:
+
+| Evidence in repo | Draft it proves | Proof |
+|---|---|---|
+| Grace Hopper was already row 1, so the row assertion could not fail | `TEST_THAT_CANNOT_FAIL`, `FIXTURE_COUPLING` | green under old fixture, red under `Lynn Conway` |
+| `filter(Boolean)` discarded the empty-`q` request | `TEST_THAT_CANNOT_FAIL` | red as `[ '', … ]` vs `[ null, … ]` |
+| Fake timers hang RTL's `asyncWrapper` | `HIDDEN_ASYNC` | 3 upstream issues, 5 dead ends, `fakeTimers.ts` JSDoc |
+| `lab/` proves which coarse assertions oxlint already rejects | `ASSERTION_PRECISION` | `lint-coverage.spec.ts` + `MATRIX.md` |
+
+**First increment, when it starts: `TEST_THAT_CANNOT_FAIL`.** Chosen because it
+has three worked examples rather than one, its verification move (*break it on
+purpose*) is already binding method here so the skill would be codifying
+practice rather than inventing it, and several other pitfalls reduce to it —
+fixture coupling and assertion precision are both ways an assertion stops being
+able to fail. It also **does not collide with 008**, which has
+`ASSERTION_PRECISION`.
+
+Treat the first one as a format prototype: write it, apply it to the existing
+`src` specs, and see whether it catches anything the drafts' prose did not. If
+the format does not earn its keep on a pitfall this well-evidenced, it will not
+on the thinner ones.
 
 ## Open — needs your call
 
-1. **Was upstream ever checked?** `DEBUG_005_fake_timers.md` derives the root
-   cause entirely from reading `node_modules` source. Nowhere does it mention
-   searching GitHub issues on `testing-library/react-testing-library`,
-   `testing-library/user-event`, `vitest-dev/vitest`, or `capricorn86/happy-dom`
-   — and this is a years-old, widely-hit incompatibility, so there is almost
-   certainly an open issue, a documented workaround, or a maintainer position on
-   it. The agent reverse-engineered from scratch what may be written down.
-
-   Worth knowing:
-   - Is there a canonical workaround? Ours (`globalThis.jest` stub) is
-     plausible but invented. A `vitest.setup` recipe or a maintainer-blessed
-     shim would beat it.
-   - Is a fix landing? RTL is at **16.3.2, which is latest** — no version bump
-     rescues us. If the fix is gated on RTL dropping the Jest coupling, we hold
-     the shim indefinitely and should say so in a comment.
-   - Does `@testing-library/dom`'s `asyncWrapper` config offer a supported
-     override, making the global stub unnecessary?
-
-   **The general lesson matters more than the answer.** Source-diving is a
-   legitimate and impressive fallback, but it should be the *second* move. Doing
-   it first cost most of a session on a problem that thousands of vitest+RTL
-   users have hit. Whatever the review concludes, this belongs in the working
-   preferences: check upstream before reverse-engineering `node_modules`.
-
-2. **How do we make that check LLM-friendly and efficient?** Open question, not
-   yet designed. The failure above is structural, not a lapse of judgment: the
-   agent had no cheap, reliable way to search issue trackers, so it did what it
-   could do. Worth deciding what "check upstream first" concretely means here.
-
-   Things to weigh:
-   - **What is actually available?** Checked this session: **`gh` is not
-     installed** (`gh not found`), so `gh search issues --json` — the cheapest
-     structured option — is not on the table without installing it.
-     `WebSearch`/`WebFetch` do exist in this harness and were not used. So the
-     question splits: install `gh` and make issue search a first-class move, or
-     build the habit around web search alone?
-   - **Cost.** Issue threads are long, noisy, and mostly "+1". Naive fetching
-     burns context fast. `gh search issues --json` with field selection returns
-     structured, cheap results; fetching a rendered HTML issue page does not.
-     This is the main argument for installing `gh`.
-   - **Trust.** A stale StackOverflow answer or a closed-but-not-released fix
-     can send an agent down a worse path than reading source. Any recipe needs a
-     rule for *when to stop trusting search and go read the code* — the reverse
-     of the mistake made here.
-   - **Where it lives.** A `CONVENTIONS.md` line, a step in each task file, or
-     part of the project-local testing skill (item 8). Probably the skill, since
-     it is a general debugging discipline rather than a testing rule.
-   - **State of the art.** Genuinely unclear, and worth 20 minutes of research
-     rather than a guess. Sub-questions: do the relevant projects expose
-     LLM-readable docs (`llms.txt`, `.md` endpoints) the way react-router and
-     nuqs do? Is there tooling that summarizes an issue thread to its resolution
-     instead of dumping it? Does an MCP server for GitHub issues change the cost
-     profile enough to matter?
-
-3. **Where does the `jest` shim live?** Per-spec helper (today) or
-   `testsConfig/setup.ts`. 006 will need it too. Note this question partly
-   depends on #1 — if upstream documents a supported `asyncWrapper` override,
-   the shim may not be the right shape at all.
-4. **Does the fake-timer finding become a pitfall entry?** See above.
-5. **Flaky delay test** — convert to fake timers now that the pattern works, or
-   leave.
-6. **Knip baseline is dirty.** `src/components/ui/dialog.tsx` unused plus
-   vendored exports. "scan:dead-code passes" still means nothing to a future
-   agent. Either ignore `components/ui/` in `knip.ts` or prune. 007 shrinks this
-   slightly by deleting scaffold assets.
-7. **Duplicated drafts.** Several `DRAFT_FE_TESTING_* copy.md` and `copy 2.md`
-   in the repo root. Confirm accidental before any distillation reads them as
-   distinct sources.
-8. **The project-local testing skill.** Still the real deliverable per
-   `AGENTS.md`. Blocked on distilling `DRAFT_FE_TESTING_*.md`. The vendored
+1. **Commit the working tree.** Deferred deliberately — the split is yours to
+   make. Three independent workstreams are mixed in it: the fake-timer shim
+   (`fakeTimers.ts`, `setup.ts`, `EmployeesPage.spec.tsx`), the `lab/` probes
+   (`lab/`, `tsconfig.lab.json`, `tsconfig.json`, `vite.config.ts`, `AGENTS.md`),
+   and the docs (`HANDOFF.md`, `tasks/006`, `tasks/007`). Until this lands, the
+   revert hazard at the top of this file is live.
+2. **Does the fake-timer finding become a `TESTING_PITFALLS.md` entry?** Now
+   stronger than it was: with the upstream links it is a documented ecosystem
+   gap rather than a local war story, which is what that file is for.
+3. **Flaky delay test** — `shows the loading state until a delayed response
+   arrives` still races a real `setTimeout(50)` against a 100ms helper delay.
+   Convertible now that the pattern works, but MSW's `delay` runs on the faked
+   clock and needs its own advance. Small follow-up.
+4. **Knip baseline is still dirty** — `src/components/ui/dialog.tsx` unused plus
+   the vendored exports. Either ignore `components/ui/` in `knip.config.ts` or
+   prune. Until this is settled, "scan:dead-code passes" means nothing to a
+   future agent, because nobody can tell a new leak from the baseline without
+   diffing by hand. 007 shrinks it slightly by deleting scaffold assets.
+5. **Duplicated drafts — confirmed accidental, re-verified this session.** All
+   12 `* copy*.md` files are still byte-identical to their base (`cmp` on each)
+   and tracked in git. Safe to `git rm`; say the word. This now actively blocks
+   the skill work: a glob over `DRAFT_FE_TESTING_*.md` returns 25 files, 12 of
+   them dupes, and `ASSERTION_PRECISION` appears three times.
+6. **`tasks/008` line 193 has a stale `HANDOFF open item 3` reference** — same
+   drift described in the method note. Left alone because you were editing the
+   file; one line, fix it next time you open it. 008 has had no audit pass from
+   me at all.
+7. **The project-local testing skill.** Still the real deliverable per
+   `AGENTS.md`. **Approach now decided — see *The skill — evidence-first* below.**
+   Remaining call is only whether to start the first increment
+   (`TEST_THAT_CANNOT_FAIL`) or wait for 008 to land. The vendored
    `.agents/skills/tdd` is generic and backend-shaped.
-
-## Tasks 006 and 007 — decisions already locked
-
-Both were designed this session with decisions settled up front rather than left
-to the executing agent. Do not reopen these inside the task; they have rationale
-written into the task files.
-
-**006 — URL search-param state**
-
-- `useSearchParams` from react-router 8. **nuqs was considered and rejected**:
-  its typed parsers and defaults remove exactly the `string | null` parsing and
-  update-batching problems 006 exists to demonstrate. React Router 8 gives *no*
-  type safety for search params — its typegen covers route params and loader
-  data only.
-- Write path is **debounced `onChange`, not a `useEffect`**. No mount write, no
-  first-render guard.
-- `useDebouncedValue` → `useDebouncedCallback` (with unmount cancel). The old
-  hook is deleted; an unused export fails knip.
-- Bad params are parsed/clamped, URL never rewritten. `?page=99` reaches the
-  empty state — this resolves the long-standing "empty-state code is dead" item.
-- Both params written in **one** `setSearchParams` call. react-router does not
-  queue them; two calls in a tick lose the first. That is the sharpest pitfall
-  in the task.
-- Back/forward tests **out of scope**, so push-vs-replace is unenforced. Flagged
-  in the task as a decision with no gate.
-
-**007 — home landing page**
-
-- Replaces the Vite scaffold with a card grid, one card per capability, linking
-  to `/employees`. Needs `npx shadcn@latest add card`.
-- `Link`, never `<a href>`. The mutation that matters: a `<div onClick>` still
-  navigates in a browser but has no `link` role.
-- Copy strings are pinned in the task so the spec cannot drift from the page.
-- Deletes `src/assets/{hero.png,react.svg,vite.svg}` and `public/icons.svg` —
-  verified this session that `HomePage.tsx` is the sole consumer. Keeps
-  `favicon.svg` (referenced by `index.html`; knip does not scan `public/`).
 
 ## Method — binding
 
+**Check upstream before reverse-engineering `node_modules`.** New this session,
+and it is a sequencing rule, not a ban on source-diving. 005 derived a correct
+root cause entirely from reading RTL's source; the same answer was two web
+searches away, already written up by the maintainers of the project that has the
+bug. Source-diving is the legitimate *second* move — and the right one the
+moment search returns stale or contradictory advice. `gh` is **not installed**,
+so `gh search issues --json` is unavailable; `WebSearch` and `WebFetch` both work
+and were cheap here (~5 minutes, four calls). Fetch the issue thread, not a
+StackOverflow summary of it, and always confirm open/closed state and whether a
+fix actually shipped.
+
 **Tests are mutation-checked, not trusted for being green.** Break the code each
 test covers, confirm it fails, revert. This has caught real problems every time
-it has been run.
+it has been run — including twice this session.
+
+**A mutation that reddens the right test for the wrong reason is not a pass.**
+Find the surgical version or record honestly that you could not.
 
 **"Setup-only" is retired.** 002 and 003 were stamped *write no new spec files*,
 so the only gate was "compiles and lints" — which passed on three defects.
 
-**Tasks state decisions, not menus.** 003 offered "dim or disable",
-"aria-disabled or `<button disabled>`", "decide and implement one behavior". Free
-choice plus no behavioral gate makes whatever the agent picks unfalsifiable —
-and one offered option was the bug the next sentence warned against. 005/006/007
-lock their choices with rationale.
+**Tasks state decisions, not menus.** 003 offered "dim or disable", "decide and
+implement one behavior". Free choice plus no behavioral gate makes whatever the
+agent picks unfalsifiable. 007 had regressed into this and was fixed above —
+check new task files for it specifically.
+
+**A decision with no gate must say so in the task.** 006 does this for
+push-vs-replace and now for the latest-ref requirement. An agent must never read
+a green suite as confirmation of an ungated decision.
+
+**Never cross-reference this file by item number.** New this session. Task files
+cited "HANDOFF open item 1" and "open item 3"; the list is reordered every
+session, so by the time an executor reads them they pointed at the wrong item or
+at one that had been deleted. State the substance inline, or name the item —
+"the knip baseline item" — never the ordinal. Three such references survive in
+`tasks/005` and are left as-is because it is closed.
+
+**A mutation check is two-way when the fix is a fixture change.** Showing the
+mutation reddens the *new* test is half the proof; it must also be shown to stay
+**green** under the old one, or you have not demonstrated the change was
+load-bearing rather than merely different. Both 005 findings were closed this
+way.
 
 **Groundwork steps get labelled.** A red-green task that opens with two
 implementation steps contradicts itself unless those steps say "no behavioral
@@ -263,6 +397,10 @@ gate of their own — verified by the scenarios that follow".
 Nothing below those two. Error-path tests belong in the page spec, not a separate
 error spec file — same seam, one file.
 
+**Fake timers** — always via `setupFakeTimerUser()` from
+`@/testsConfig/fakeTimers`. Never hand-rolled, never enabled before the initial
+render has settled, and never cleaned up by hand.
+
 **Dev server is blocked** — deny rules plus a `PreToolUse` hook in
 `.claude/settings.json`.
 
@@ -271,6 +409,9 @@ error spec file — same seam, one file.
 - Status filter, sortable headers (header-row off-by-one), row status mutation
   with optimistic update + rollback, delete with `AlertDialog` confirm, row
   detail (portals, duplicate text matching).
+
+A third search param would give the 006 latest-ref decision a real gate — worth
+remembering when the status filter lands.
 
 Out of scope: create-employee wizard, bulk actions, column visibility toggles,
 CSV export, page-size selection.

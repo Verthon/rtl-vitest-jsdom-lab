@@ -1,6 +1,7 @@
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { TestAppProviders } from '@/testsConfig/TestAppProviders'
+import { setupFakeTimerUser } from '@/testsConfig/fakeTimers'
 import { mockNetworkError, mockResponse } from '@/testsConfig/mockResponse'
 import { server } from '@/mocks/server'
 import { EmployeesPage } from './EmployeesPage'
@@ -19,18 +20,7 @@ async function findRowByName(name: string) {
   return (await screen.findByRole('cell', { name })).closest('tr')
 }
 
-function setupFakeTimerUser() {
-  vi.useFakeTimers()
-  Object.assign(globalThis, { jest: { advanceTimersByTime: vi.advanceTimersByTime } })
-  return userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
-}
-
 describe('EmployeesPage', () => {
-  afterEach(() => {
-    vi.useRealTimers()
-    Reflect.deleteProperty(globalThis, 'jest')
-  })
-
   it('shows the first page of employees', async () => {
     renderPage()
 
@@ -142,25 +132,30 @@ describe('EmployeesPage', () => {
 
     const user = setupFakeTimerUser()
     const filterField = screen.getByRole('textbox', { name: /name/i })
-    await user.type(filterField, 'grace hopper')
+    await user.type(filterField, 'lynn conway')
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(300)
     })
 
-    await findRowByName('Grace Hopper')
+    // Deliberately someone off the unfiltered first page, so the row assertion
+    // is load-bearing: a client-side filter over the fetched page finds nobody.
+    await findRowByName('Lynn Conway')
     expect(dataRows()).toHaveLength(1)
   })
 
   it('does not refetch until typing stops', async () => {
-    renderPage()
-    await findRowByName(mockEmployees[0].name)
-
+    // Registered before the render so the mount request is recorded too: `null`
+    // means the param is absent, `''` means present-but-empty, and only keeping
+    // both distinguishes the empty-q → undefined rule from a q= that got sent.
     const requests: Array<string | null> = []
     const onRequest = ({ request }: { request: Request }) => {
       requests.push(new URL(request.url).searchParams.get('q'))
     }
     server.events.on('request:start', onRequest)
+
+    renderPage()
+    await findRowByName(mockEmployees[0].name)
 
     const user = setupFakeTimerUser()
     const filterField = screen.getByRole('textbox', { name: /name/i })
@@ -178,8 +173,7 @@ describe('EmployeesPage', () => {
 
     server.events.removeListener('request:start', onRequest)
 
-    const filteredRequests = requests.filter(Boolean)
-    expect(filteredRequests).toStrictEqual(['Grace Hopper'])
+    expect(requests).toStrictEqual([null, 'Grace Hopper'])
   })
 
   it('returns to the first page when the filter changes', async () => {

@@ -70,6 +70,22 @@ Preserve these seams. Do not smooth them away.
   `setSearchParams` on an unmounted component, which in tests surfaces as a
   cross-test navigation and is miserable to trace.
 
+  **The stable function must call the latest `fn`, not the one captured at
+  mount.** Keep `fn` in a ref that every render updates, and have the timer read
+  that ref when it fires. This is not a style preference — it is load-bearing
+  here. `setSearchParams` is memoized on `[navigate, searchParams]`
+  (`react-router/dist/development/lib/dom/lib.js:760-764`), so the identity you
+  capture at mount permanently closes over the *mount-time* params. A debounced
+  write built on it computes its "current" params from the URL as it was on
+  first render, silently discarding anything written since.
+
+  **This has no gate in 006.** Both params are traced end-to-end and neither
+  scenario below distinguishes the stale version — step 7's assertion is "no
+  `page` key", and a stale base that never had `page` satisfies it for the wrong
+  reason. Same status as push-vs-replace: a stated decision resting on review,
+  not on a red test. Implement it correctly; a later task with a third param
+  will make it observable.
+
   005's value-debounce has no caller once the write moves into `onChange`, and
   an unused export fails `scan:dead-code`. The shape genuinely changed: URL state
   needs a debounced *action*, not a debounced *value*. Delete it rather than
@@ -161,9 +177,15 @@ Pagination clicks call `setSearchParams` directly — no debounce, a click is
 already a discrete intent.
 
 Both params go in **one** `setSearchParams` call. The callback form receives the
-current params; mutate that copy and return it. Do not call `setSearchParams`
-twice in a row — react-router does not queue them, and the second call's view of
-the params predates the first, so one write is silently lost.
+current params; mutate that copy and return it. Mutating it is safe and
+deliberate — react-router hands the callback `new URLSearchParams(searchParams)`,
+a fresh copy, not the stable instance the *Why this task exists* section warns
+about (`lib/dom/lib.js:761`). Do not "fix" this by cloning again.
+
+Do not call `setSearchParams` twice in a row — react-router does not queue them.
+The setter is memoized on `[navigate, searchParams]`, so both calls in one tick
+close over the same `searchParams`, the second builds on a copy that predates the
+first, and one write is silently lost.
 
 Removing a key is `params.delete(key)`, not setting it to `''`. Page 1 and an
 empty filter mean the key is absent.
@@ -217,9 +239,16 @@ render(<EmployeesPage />, {
 Assert the third page's rows and `Showing 21–30 of 47`, with no interaction at
 all. Under `useState` this test is impossible; that is why it is here.
 
-Add a second case in the same scenario or alongside it: `?q=Grace%20Hopper`
-renders the filtered result on load **and** the filter field shows
-`Grace Hopper`. A deep link with an empty-looking field is the bug this catches.
+Add a second `it` alongside it — not more assertions in the same one, since the
+two fail for unrelated reasons:
+
+```
+it('renders the filter named in the URL on first load')
+```
+
+`?q=Grace%20Hopper` renders the filtered result on load **and** the filter field
+shows `Grace Hopper`. A deep link with an empty-looking field is the bug this
+catches.
 
 ### 6. Scenario — a malformed or out-of-range page
 
@@ -233,8 +262,9 @@ disabled. Without the parse step, `Number('abc')` is `NaN`, which lands in the
 query key and the request.
 
 `?page=99` → empty state, no table. This is the first time the empty branch is
-honestly reachable from user input; HANDOFF open item 1 resolves here. Assert
-the URL still reads `?page=99` — the app must not have rewritten it.
+reachable from user input rather than only from a stubbed response, which is why
+it is worth its own scenario. Assert the URL still reads `?page=99` — the app
+must not have rewritten it.
 
 ### 7. Scenario — changing the filter resets page in one update
 
@@ -253,9 +283,29 @@ Two sequential `setSearchParams` calls make this red: the second call's copy of
 the params does not include the first call's change, so one of the two writes is
 silently lost. Build one params object and set it once.
 
-Fake timers apply here exactly as in 005 — `userEvent.setup({ advanceTimers:
-vi.advanceTimersByTime })`, and `await act(async () => { await
-vi.advanceTimersByTimeAsync(300) })`. Re-read 005 step 4 before writing this.
+**Fake timers: use the helper, not the raw pattern.**
+
+```ts
+import { setupFakeTimerUser } from '@/testsConfig/fakeTimers'
+
+const user = setupFakeTimerUser()
+await user.type(filterField, 'grace hopper')
+await act(async () => { await vi.advanceTimersByTimeAsync(300) })
+```
+
+Do **not** hand-roll `userEvent.setup({ advanceTimers: vi.advanceTimersByTime })`
+here, and ignore the snippet in 005 step 4 — that is the version that hangs.
+Under `vi.useFakeTimers()`, every `userEvent` call awaits a faked
+`setTimeout(resolve, 0)` inside RTL's `asyncWrapper` that nothing advances, so
+the test dies at 5000ms with no stack trace into your test body. This cost most
+of a session to diagnose once already. `setupFakeTimerUser()` carries the
+workaround and the upstream links; read its JSDoc before touching fake timers.
+
+Cleanup is global — `testsConfig/setup.ts` restores real timers after every
+test. Do not add an `afterEach` for it.
+
+Enable fake timers *after* the initial render has settled. Waiting for the first
+page under fake timers reintroduces a hang in RTL's first `findBy*` poll.
 
 ### 8. Existing tests
 
@@ -282,7 +332,7 @@ nothing means the test is wrong.
 | Filter change sets `q` and `page` in two separate calls | drops the page param when the filter changes |
 | Filter change stops resetting page | drops the page param when the filter changes |
 | `useDebouncedCallback` delay → 0 | *(see below)* |
-| Empty filter writes `q=` instead of deleting the key | puts the current page in the URL, or add an assertion |
+| Empty filter writes `q=` instead of deleting the key | drops the page param when the filter changes — extend it: type the filter, advance, then clear the field, advance again, and assert the probe reads `''` with no `q` key |
 
 The debounce-delay mutation has no scenario of its own here — 006 moves an
 already-debounced behavior rather than introducing it, and 005 owns the
@@ -310,9 +360,15 @@ it, and say so in your report.
 All four commands pass:
 
 ```bash
-npm run build && npm run test:unit && npm run lint && npm run scan:dead-code
+npm run build && npx vitest run src && npm run lint && npm run scan:dead-code
 ```
 
-`scan:dead-code` has a known dirty baseline (HANDOFF open item 3). Do not fix it
-here, and do not let it hide a new unused export of yours — diff the report
-against the baseline.
+**Note the `src` scope — that is deliberate, do not widen it to
+`npm run test:unit`.** The `lab/` directory is a separate diagnostics workstream
+included by the `vite.config.ts` glob; specs there are edited interactively and
+are expected to fail or time out. A red `lab/` spec is not your regression and
+is never yours to fix. Gate on `src` only.
+
+`scan:dead-code` has a known dirty baseline (see the knip item in HANDOFF's
+*Open* list). Do not fix it here, and do not let it hide a new unused export of
+yours — diff the report against the baseline.
