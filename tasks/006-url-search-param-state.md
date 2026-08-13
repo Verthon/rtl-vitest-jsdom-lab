@@ -2,9 +2,12 @@
 
 Read `AGENTS.md` and `CONVENTIONS.md` first. Do only this task.
 
-**Depends on 005.** Do not start until `tasks/005-debounced-filter.md` is
-executed and its tests pass. 006 moves the state 005 built; if 005 has not run,
-there is nothing here to move.
+**Depends on 005.** 005 is executed, reviewed, and accepted — 006 moves the
+state it built.
+
+**Run 007 before this task.** 007 deletes the Vite scaffold assets, which shrinks
+the dirty `scan:dead-code` baseline you have to diff against in *Done*. Not a
+code dependency; it just makes this task's final check easier to read.
 
 Move `page` and `q` out of `useState` and into the URL query string via
 `useSearchParams`. The page becomes deep-linkable and back/forward navigable.
@@ -309,9 +312,13 @@ page under fake timers reintroduces a hang in RTL's first `findBy*` poll.
 
 ### 8. Existing tests
 
-003's and 005's page tests should survive unchanged — same rendered output, same
-interactions. If one needs editing, stop and explain why before changing it: an
-edit here usually means the observable behavior moved, which is out of scope.
+003's page tests assert on rendered output and interactions that this migration
+does not change.
+
+005's five fake-timer tests are a different matter: they advance timers against
+`useDebouncedValue`, and step 2 replaces it with `useDebouncedCallback`. The
+debounce moves from a value to a callback in `onChange`, so some of those tests
+will need rework. That is expected, not a signal that something went wrong.
 
 `TestAppProviders.spec.tsx` and `api.spec.ts` should not need changes at all.
 
@@ -336,10 +343,22 @@ nothing means the test is wrong.
 
 The debounce-delay mutation has no scenario of its own here — 006 moves an
 already-debounced behavior rather than introducing it, and 005 owns the
-"does not refetch until typing stops" test. If 005's version of that test
-survives this migration, it is your gate; check that it still reddens when the
-delay goes to 0. If the migration invalidated it, port it rather than dropping
-it, and say so in your report.
+"does not refetch until typing stops" test. That test is your gate; check that
+it still reddens when the delay goes to 0. If the migration invalidated it, port
+it rather than dropping it, and say so in your report.
+
+That test asserts on the **full** request list:
+
+```ts
+expect(requests).toStrictEqual(['Grace Hopper'])
+```
+
+It previously ran `requests.filter(Boolean)` first, which silently discarded
+unfiltered requests and would have swallowed a `q=''` regression. That was fixed
+before 006 started — verified that `requests` holds exactly one entry, and that
+the delay-to-0 mutation still reddens it. **Do not reintroduce a `filter()`
+here.** If the migration makes an unfiltered request appear in this list, that
+is a real finding about the write path, not noise to filter out.
 
 ## Out of scope
 

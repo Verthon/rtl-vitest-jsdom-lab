@@ -272,6 +272,38 @@ Treat the first one as a format prototype: write it, apply it to the existing
 the format does not earn its keep on a pitfall this well-evidenced, it will not
 on the thinner ones.
 
+## Decided in session 3
+
+1. **Upstream check — declined, deliberately.** Offered and turned down. We keep
+   the invented `globalThis.jest` stub without confirming it against the RTL /
+   user-event / vitest issue trackers. Consequence, stated plainly: we hold a
+   workaround we cannot cite, and if a supported `asyncWrapper` override exists
+   we do not know about it. Revisit if the shim ever misbehaves. The *general*
+   lesson from old item 1 still stands and is unaffected by this choice: check
+   upstream before reverse-engineering `node_modules`.
+
+2. **Shim moved to `testsConfig/setup.ts`.** It now runs in a global
+   `beforeEach`, with `vi.useRealTimers()` and the property delete in the global
+   `afterEach`. Every spec gets it automatically; no spec file declares it.
+   `setupFakeTimerUser()` in `EmployeesPage.spec.tsx` is down to two lines
+   (`vi.useFakeTimers()` + `userEvent.setup({ advanceTimers })`).
+
+3. **`filter(Boolean)` fixed** — open item 9 is closed. The assertion is now
+   `expect(requests).toStrictEqual(['Grace Hopper'])` against the full list.
+   Verified two ways: the array genuinely holds exactly one entry (the listener
+   attaches after the initial fetch settles, so no `null` ever arrives), and the
+   delay-to-0 mutation still reddens it.
+
+4. **007 runs before 006.** Not a code dependency — 007 deletes scaffold assets
+   and shrinks the knip baseline 006 has to diff against.
+
+**Verification after these changes:** build OK, 20/20 tests, `oxlint` exit 0
+(five pre-existing warnings), knip unchanged at 1 file / 11 exports / 1 type.
+
+**Note on `npm run lint`:** it exits 2 with `ESLint output (JSON parse failed)`
+— that is the RTK proxy wrapper failing to parse oxlint's output, **not** a lint
+failure. Run `npx oxlint` directly to get a true result.
+
 ## Open — needs your call
 
 1. **Commit the working tree.** Deferred deliberately — the split is yours to
@@ -306,6 +338,8 @@ on the thinner ones.
    Remaining call is only whether to start the first increment
    (`TEST_THAT_CANNOT_FAIL`) or wait for 008 to land. The vendored
    `.agents/skills/tdd` is generic and backend-shaped.
+9. ~~**Fix `filter(Boolean)`**~~ **Closed** — fixed and mutation-verified. See
+   "Decided in session 3" item 3.
 
 ## Method — binding
 
