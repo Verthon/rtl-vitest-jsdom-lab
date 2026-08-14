@@ -37,12 +37,22 @@ array:
 ```
 expect(items.length === 6).toBe(true)   // expected true, received false
 expect(items.length).toBe(6)            // expected 6, received 5
-expect(items).toHaveLength(6)           // expected length 6, received 5, array: [...]
+expect(items).toHaveLength(6)           // expected length 6, received 5, and a
+                                        // preview truncated after the first entry
+expect(names).toStrictEqual([...])      // names the entry that is missing
 ```
 
-All three are correct. All three catch the regression. They differ only
+All four are correct. All four catch the regression. They differ only
 in what the failing run tells you, and that difference is the entire
 practical value of the test on the day it matters.
+
+There are three rungs here, not two, and `toHaveLength` is the middle one.
+It was measured, not assumed: its message previews the array but truncates
+after the first entry, and its `actual` is the length rather than the array —
+so it says the count is wrong and never which element is missing. Only
+projecting the field you mean and asserting on that projection names the
+defect. See `lab/assertions/assertion-precision.spec.ts`, *toHaveLength
+previews the array, but truncates it after the first entry*.
 
 The same shape recurs everywhere. Comparing a DOM node's `checked`
 property against `false` forces the reader to recall whether the DOM

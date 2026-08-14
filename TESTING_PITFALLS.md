@@ -8,7 +8,10 @@ the matching `DRAFT_FE_TESTING_*.md`.
   what's actually being claimed. (`ASSERTION_NOISE`)
 - **Assertion precision** — A coarse assertion (`toBe(true)`, a manual
   property check) throws away information a more specific matcher would have
-  printed on failure. (`ASSERTION_PRECISION`)
+  printed on failure. Enforced by
+  `.agents/skills/assertion-precision/SKILL.md`; the caught/uncaught boundary
+  and the per-type matcher table are measured in `lab/assertions/MATRIX.md`.
+  (`ASSERTION_PRECISION`)
 - **Behavior vs. state** — Asserting on a component's internal state or
   structure instead of what a user can observe couples the test to details
   the author is free to change. (`BEHAVIOR_VS_STATE`)

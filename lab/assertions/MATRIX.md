@@ -35,10 +35,42 @@ means the linter is silent and a reviewer is the only line of defence.
 | Promise | `try { await load() } catch (e) { expect(e.message)... }` | passes when nothing rejects — the assertion never runs | `await expect(load()).rejects.toThrow(msg)` | `no-conditional-expect` |
 | null vs falsy | `expect(selectedId).toBeFalsy()` | passes on `''`, `0`, `undefined` | `expect(selectedId).toBeNull()` | judgment |
 
+## DOM
+
+Measured with the 27 `testing-library/*` rules enabled. `lintTestRules()` lints
+a snippet in isolation, so DOM forms are probed **with** the RTL import —
+`no-node-access` is silent without it.
+
+| Coarse form | Precise form | oxlint |
+|---|---|---|
+| `expect(queryByRole('alert')).toBeInTheDocument()` | `getByRole` / `findByRole` | `prefer-presence-queries` |
+| `expect(queryByRole('alert')).toBeTruthy()` | `getByRole` | `prefer-presence-queries` |
+| `container.querySelector('.row')`, `.parentElement` | a role or text query | `no-node-access` |
+| `const row = findByRole('row')` unawaited | `await findByRole` | `await-async-queries` |
+| `const { getByRole } = render(...)` | `screen.getByRole` | `prefer-screen-queries` |
+| `fireEvent.click(...)` | `userEvent.click` | `prefer-user-event` |
+| a side effect inside `waitFor` | act outside, await inside | `no-wait-for-side-effects` |
+| `await waitFor(() => expect(getBy...))` | `await findBy...` | `prefer-find-by` |
+| `expect(getByRole('row')).toBeInTheDocument()` | drop it — `getBy` already threw | judgment |
+| `expect(getByRole('row')).toBeDefined()` | drop it | judgment |
+| `.checked` / `.disabled` / `.value` | `toBeChecked` / `toBeDisabled` / `toHaveValue` | judgment |
+| `.getAttribute(x)` / `.classList.contains(x)` | `toHaveAttribute` / `toHaveClass` | judgment |
+| `.textContent` exact match | query the cell that carries the value | judgment |
+| `.innerHTML` | a role or text query | judgment |
+| `expect(getAllByRole('row')).toHaveLength(4)` | assert the projected rows | judgment |
+| `toBeInTheDocument()` where visibility was meant | `toBeVisible()` | judgment |
+| several assertions inside one `waitFor` | await one, assert the rest outside | judgment † |
+
+† `no-wait-for-multiple-assertions` is enabled and does **not** fire on this —
+an oxlint gap, pinned in `lint-coverage.spec.ts` so an upgrade that closes it
+reddens the spec. `expect(queryByRole('alert')).not.toBeInTheDocument()` is
+correct and pinned as a non-finding.
+
 ## Score
 
-Nine of the eighteen coarse forms probed in `lint-coverage.spec.ts` are caught
-by oxlint with the current config; nine are not. The linter covers the cases
+Nine of the eighteen plain-value forms probed in `lint-coverage.spec.ts` are
+caught by oxlint with the current config; nine are not. On the DOM the split is
+eight caught to eleven uncaught. The linter covers the cases
 where the *shape* of the expression is wrong — a comparison performed inside
 `expect()`, a value reduced by `includes()`, a matcher used without its
 argument. It is blind to every case where the expression is well-formed but

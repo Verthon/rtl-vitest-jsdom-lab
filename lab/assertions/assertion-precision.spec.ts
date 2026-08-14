@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { screen, waitFor } from '@testing-library/react'
 import { failureOf } from './failureOf'
 
 describe('assertion precision', () => {
@@ -350,6 +351,181 @@ describe('assertion precision', () => {
       })
 
       expect(report).toContain('trim')
+    })
+  })
+
+  describe('dom', () => {
+    function renderRow(markup: string): HTMLElement {
+      document.body.innerHTML = markup
+
+      return document.body
+    }
+
+    it('toBeInTheDocument on a getBy result cannot fail — the query already threw', async () => {
+      renderRow('<table><tbody><tr><td>Ada Lovelace</td></tr></tbody></table>')
+
+      const row = screen.getByRole('row')
+
+      const report = await failureOf(() => {
+        expect(row).toBeInTheDocument()
+      })
+
+      expect(report).toBeNull()
+    })
+
+    it('the getBy itself is what fails, and it names the role it could not find', async () => {
+      renderRow('<p>Ada Lovelace</p>')
+
+      const report = await failureOf(() => {
+        screen.getByRole('row')
+      })
+
+      expect(report).toContain('row')
+    })
+
+    it('reading checked reports two booleans and nothing about the element', async () => {
+      renderRow('<input type="checkbox" aria-label="active" />')
+
+      const checkbox = screen.getByRole('checkbox') as HTMLInputElement
+
+      const report = await failureOf(() => {
+        expect(checkbox.checked).toBe(true)
+      })
+
+      expect(report).not.toContain('input')
+    })
+
+    it('toBeChecked prints the element whose state was wrong', async () => {
+      renderRow('<input type="checkbox" aria-label="active" />')
+
+      const checkbox = screen.getByRole('checkbox')
+
+      const report = await failureOf(() => {
+        expect(checkbox).toBeChecked()
+      })
+
+      expect(report).toContain('input')
+    })
+
+    it('reading textContent forces an exact match against concatenated cells', async () => {
+      renderRow('<table><tbody><tr><td>Ada</td><td>viewer</td></tr></tbody></table>')
+
+      const row = screen.getByRole('row')
+
+      const report = await failureOf(() => {
+        expect(row.textContent).toBe('Ada engineer')
+      })
+
+      expect(report).toContain('Adaviewer')
+    })
+
+    it('toHaveTextContent reports the same flattened text — its gain is substring matching, not output', async () => {
+      renderRow('<table><tbody><tr><td>Ada</td><td>viewer</td></tr></tbody></table>')
+
+      const row = screen.getByRole('row')
+
+      const report = await failureOf(() => {
+        expect(row).toHaveTextContent('engineer')
+      })
+
+      expect(report).toContain('Adaviewer')
+      expect(report).not.toContain('<td>')
+    })
+
+    it('neither form names which cell regressed, so the cell is the thing to query', async () => {
+      renderRow(
+        '<table><tbody><tr><td>Ada</td><td aria-label="role">viewer</td></tr></tbody></table>',
+      )
+
+      const report = await failureOf(() => {
+        expect(screen.getByLabelText('role')).toHaveTextContent('engineer')
+      })
+
+      expect(report).toContain('viewer')
+      expect(report).not.toContain('Ada')
+    })
+
+    it('toBeInTheDocument passes on an element the user cannot see', async () => {
+      renderRow('<div role="dialog" style="display: none">Confirm</div>')
+
+      const dialog = screen.getByRole('dialog', { hidden: true })
+
+      const report = await failureOf(() => {
+        expect(dialog).toBeInTheDocument()
+      })
+
+      expect(report).toBeNull()
+    })
+
+    it('toBeVisible is the matcher that separates present from displayed', async () => {
+      renderRow('<div role="dialog" style="display: none">Confirm</div>')
+
+      const dialog = screen.getByRole('dialog', { hidden: true })
+
+      const report = await failureOf(() => {
+        expect(dialog).toBeVisible()
+      })
+
+      expect(report).toContain('visible')
+    })
+
+    it('waitFor does name the failing assertion, but pays the full timeout to do it', async () => {
+      renderRow('<table><tbody><tr><td>Ada</td></tr></tbody></table>')
+
+      const startedAt = Date.now()
+
+      const report = await failureOf(async () => {
+        await waitFor(
+          () => {
+            expect(screen.getByRole('row')).toBeInTheDocument()
+            expect(screen.getByText('Grace')).toBeInTheDocument()
+          },
+          { timeout: 200 },
+        )
+      })
+
+      expect(report).toContain('Grace')
+      expect(Date.now() - startedAt).toBeGreaterThanOrEqual(200)
+    })
+
+    it('awaiting one condition and asserting the rest outside fails on the same message', async () => {
+      renderRow('<table><tbody><tr><td>Ada</td></tr></tbody></table>')
+
+      const report = await failureOf(async () => {
+        // oxlint-disable-next-line testing-library/prefer-find-by -- the waitFor form is the subject
+        await waitFor(() => expect(screen.getByRole('row')).toBeInTheDocument(), { timeout: 200 })
+        expect(screen.getByText('Grace')).toBeInTheDocument()
+      })
+
+      expect(report).toContain('Grace')
+    })
+
+    it('toHaveLength on rows reports a count without naming the row that is missing', async () => {
+      renderRow(
+        '<table><tbody><tr><td>Ada</td></tr><tr><td>Grace</td></tr></tbody></table>',
+      )
+
+      const rows = screen.getAllByRole('row')
+
+      const report = await failureOf(() => {
+        expect(rows).toHaveLength(3)
+      })
+
+      expect(report).not.toContain('Grace')
+    })
+
+    it('asserting the projected row names is what names the missing row', async () => {
+      renderRow(
+        '<table><tbody><tr><td>Ada</td></tr><tr><td>Grace</td></tr></tbody></table>',
+      )
+
+      const names = screen.getAllByRole('row').map((row) => row.textContent)
+
+      const report = await failureOf(() => {
+        expect(names).toStrictEqual(['Ada', 'Grace', 'Katherine'])
+      })
+
+      expect(report).toContain('Katherine')
     })
   })
 
