@@ -22,7 +22,7 @@ const page = Number.isInteger(rawPage) && rawPage >= 1 ? rawPage : 1
 It defends four input classes: absent, non-numeric, non-positive, non-integer.
 The suite exercises **one and a half** of them.
 
-Measured during 006 verification, by mutation, not by reading:
+Measured by mutation, not by reading, and re-confirmed against `12c77cb`:
 
 | Mutation | Result |
 |---|---|
@@ -80,7 +80,9 @@ report, not an edit.
 - **Do not change `EmployeesPage.tsx`.** The guard is correct. This task proves
   it, it does not modify it. Whether `isInteger` earns its place given that no
   user reaches that branch is a separate question that was explicitly deferred.
-- **Copy the structure of the non-numeric test** at spec lines 161–175. Same
+- **Copy the structure of the non-numeric test**, `falls back to the first page
+  for a non-numeric page param` (spec lines 166–180 as of `12c77cb`; find it by
+  name, not by line). Same
   inline `TestAppProviders` wrapper with `routerProps.initialEntries`, same
   three assertions. It renders without the `LocationProbe`, and so does this
   one — the URL is the *input* here, not the thing being asserted.
@@ -91,9 +93,10 @@ report, not an edit.
 
 ## Steps
 
-1. Read `src/employee-directory/EmployeesPage.spec.tsx` lines 161–175 — the test
-   you are copying — and the helpers at the top of the file (`dataRows`,
-   `findRowByName`, `mockEmployees`).
+1. Read the test you are copying — `falls back to the first page for a
+   non-numeric page param` in `src/employee-directory/EmployeesPage.spec.tsx` —
+   and the helpers at the top of that file (`dataRows`, `findRowByName`,
+   `mockEmployees`).
 
 2. Add the test after it:
 
@@ -149,12 +152,19 @@ report, not an edit.
    |---|---|
    | `npm run build` | passes |
    | `npx vitest run src` | **28 passed / 5 files** |
-   | `npx oxlint` | **14 warnings**, unchanged |
+   | `npx oxlint` | **2 warnings, 0 errors**, unchanged |
    | `npm run scan:dead-code` | unchanged: 1 file / 13 exports / 1 type |
 
-   The oxlint count must not move. The new test uses role queries only and adds
-   no `data-testid`, so a fifteenth warning means something else came in with
-   it.
+   The oxlint count must not move, and **an error is an outright failure, not a
+   deviation to report**. `testing-library/no-test-id-queries` is set to `error`
+   as of `12c77cb`, and the `LocationProbe` was rewritten onto
+   `getByRole('status', { name: 'current URL search params' })` in the same
+   commit — which is what took the count from 14 warnings down to 2. The two
+   that remain are `vitest(no-conditional-in-test)` in
+   `lab/assertion-precision/_scratch-probe.spec.ts` and are unrelated to `src`.
+
+   The test you are adding uses role queries only. If you find yourself reaching
+   for `getByTestId`, stop — it will fail the lint gate.
 
 ## Report
 

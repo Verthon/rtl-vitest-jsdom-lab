@@ -83,7 +83,7 @@ Minimum eight. These are named because each measures something specific:
    2. If the eval does not include the known miss it is not measuring the fix.
 2. **Manufactured boolean** — `.has()` / `.includes()` / a comparison inside
    `expect()`, in a form oxlint does *not* already reject. Check against
-   `lab/assertions/lint-coverage.spec.ts` before writing it; the ones oxlint
+   `lab/assertion-precision/lint-coverage.spec.ts` before writing it; the ones oxlint
    catches belong to the overlap case, not here.
 3. **DOM property reads** — `checked`, `value`, `getAttribute`, `classList.contains`.
    Move 4 only. This case is load-bearing for the packaging question: Move 4 is

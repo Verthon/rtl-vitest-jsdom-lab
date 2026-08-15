@@ -107,9 +107,9 @@ silent edit.
 | File | Workstream | Why |
 |---|---|---|
 | `.agents/skills/assertion-precision/` (new) | 008 | The skill. 120 lines |
-| `lab/assertions/lint-coverage.spec.ts` | 008 | DOM boundary pinned. 9→41 tests |
-| `lab/assertions/assertion-precision.spec.ts` | 008 | 11 new DOM probes. 32→43 tests |
-| `lab/assertions/MATRIX.md` | 008 | New DOM table; score corrected |
+| `lab/assertion-precision/lint-coverage.spec.ts` | 008 | DOM boundary pinned. 9→41 tests |
+| `lab/assertion-precision/assertion-precision.spec.ts` | 008 | 11 new DOM probes. 32→43 tests |
+| `lab/assertion-precision/MATRIX.md` | 008 | New DOM table; score corrected |
 | `TESTING_PITFALLS.md` | 008 | `ASSERTION_PRECISION` points at the skill |
 | `DRAFT_FE_TESTING_ASSERTION_PRECISION.md` | 008 | Falsified `toHaveLength` claim fixed |
 | `tsconfig.lab.json` | 008 | `DOM` lib + jest-dom types |
@@ -220,7 +220,7 @@ deliberately rather than buried.
 
 Two smaller notes: the task's stated knip baseline of "11 exports" was already
 stale before this session — it is 13, and unchanged by this work. And
-`lab/assertions/_scratch-probe.spec.ts` was left alone as instructed, with its
+`lab/assertion-precision/_scratch-probe.spec.ts` was left alone as instructed, with its
 two `no-conditional-in-test` warnings.
 
 ## The skill — what it is now

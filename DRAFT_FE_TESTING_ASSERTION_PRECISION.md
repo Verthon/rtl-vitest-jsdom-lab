@@ -51,7 +51,7 @@ It was measured, not assumed: its message previews the array but truncates
 after the first entry, and its `actual` is the length rather than the array —
 so it says the count is wrong and never which element is missing. Only
 projecting the field you mean and asserting on that projection names the
-defect. See `lab/assertions/assertion-precision.spec.ts`, *toHaveLength
+defect. See `lab/assertion-precision/assertion-precision.spec.ts`, *toHaveLength
 previews the array, but truncates it after the first entry*.
 
 The same shape recurs everywhere. Comparing a DOM node's `checked`

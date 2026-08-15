@@ -14,8 +14,9 @@ rules a linter could express.
 - `DRAFT_FE_TESTING_*.md` — longer, unreviewed explorations of individual
   pitfalls. Draft status: not distilled, not yet turned into skills.
 - `lab/` — executable probes about the tooling itself, not about the app.
-  `lab/assertions/` measures what a failing assertion actually prints and how
-  much of that oxlint already enforces; see `lab/assertions/MATRIX.md`.
+  `lab/assertion-precision/` measures what a failing assertion actually prints
+  and how much of that oxlint already enforces; it backs the skill of the same
+  name. See `lab/assertion-precision/MATRIX.md`.
 - `CONVENTIONS.md` — structure, API/mock contract, and verification. Read
   before writing code.
 - `tasks/NNN-*.md` — scoped work items. Only do the one you are pointed at.

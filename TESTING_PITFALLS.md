@@ -10,14 +10,17 @@ the matching `DRAFT_FE_TESTING_*.md`.
   property check) throws away information a more specific matcher would have
   printed on failure. Enforced by
   `.agents/skills/assertion-precision/SKILL.md`; the caught/uncaught boundary
-  and the per-type matcher table are measured in `lab/assertions/MATRIX.md`.
+  and the per-type matcher table are measured in `lab/assertion-precision/MATRIX.md`.
   (`ASSERTION_PRECISION`)
 - **Behavior vs. state** — Asserting on a component's internal state or
   structure instead of what a user can observe couples the test to details
   the author is free to change. (`BEHAVIOR_VS_STATE`)
 - **Component mocks** — Mocking a component to unblock a test makes every
   claim about that subtree a claim about the mock, and the mock silently
-  drifts from the real component's props. (`COMPONENT_MOCKS`)
+  drifts from the real component's props. Enforced by
+  `.agents/skills/component-mocks/SKILL.md`; the drift boundary — typing
+  catches renames, not additions — is measured in
+  `lab/component-mocks/typed-mock-drift.spec.ts`. (`COMPONENT_MOCKS`)
 - **False-pass / false-fail taxonomy** — "False positive" is ambiguous
   between "failed on good code" and "passed on bad code"; say false-pass /
   false-fail / true-pass / true-fail instead. (`FALSE_PASS_TAXONOMY`)

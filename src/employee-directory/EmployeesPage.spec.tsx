@@ -179,6 +179,22 @@ describe('EmployeesPage', () => {
     expect(screen.getByRole('button', { name: 'Go to previous page' })).toBeDisabled()
   })
 
+  it('falls back to the first page for a negative page param', async () => {
+    render(<EmployeesPage />, {
+      wrapper: ({ children }) => (
+        <TestAppProviders routerProps={{ initialEntries: ['/employees?page=-3'] }}>
+          {children}
+        </TestAppProviders>
+      ),
+    })
+
+    await findRowByName(mockEmployees[0].name)
+
+    expect(dataRows()).toHaveLength(10)
+    expect(screen.getByText('Showing 1-10 of 47')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Go to previous page' })).toBeDisabled()
+  })
+
   it('shows the empty state for a page past the end', async () => {
     renderPageWithProbe(['/employees?page=99'])
 
