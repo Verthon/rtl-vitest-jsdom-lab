@@ -1,5 +1,6 @@
 import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useLocation } from 'react-router'
 import { TestAppProviders } from '@/testsConfig/TestAppProviders'
 import { setupFakeTimerUser } from '@/testsConfig/fakeTimers'
 import { mockNetworkError, mockResponse } from '@/testsConfig/mockResponse'
@@ -7,8 +8,29 @@ import { server } from '@/mocks/server'
 import { EmployeesPage } from './EmployeesPage'
 import { mockEmployees } from './mocks'
 
+function LocationProbe() {
+  const { search } = useLocation()
+  return <output data-testid="search">{search}</output>
+}
+
 function renderPage() {
   return render(<EmployeesPage />, { wrapper: TestAppProviders })
+}
+
+function renderPageWithProbe(initialEntries?: string[]) {
+  return render(
+    <>
+      <EmployeesPage />
+      <LocationProbe />
+    </>,
+    {
+      wrapper: ({ children }) => (
+        <TestAppProviders routerProps={initialEntries ? { initialEntries } : undefined}>
+          {children}
+        </TestAppProviders>
+      ),
+    },
+  )
 }
 
 function dataRows() {
@@ -27,7 +49,7 @@ describe('EmployeesPage', () => {
     await findRowByName(mockEmployees[0].name)
 
     expect(dataRows()).toHaveLength(10)
-    expect(screen.getByText('Showing 1–10 of 47')).toBeInTheDocument()
+    expect(screen.getByText('Showing 1-10 of 47')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Go to previous page' })).toBeDisabled()
   })
 
@@ -40,7 +62,7 @@ describe('EmployeesPage', () => {
     await findRowByName(mockEmployees[20].name)
 
     expect(dataRows()).toHaveLength(10)
-    expect(screen.getByText('Showing 21–30 of 47')).toBeInTheDocument()
+    expect(screen.getByText('Showing 21-30 of 47')).toBeInTheDocument()
   })
 
   it('shows the partial last page', async () => {
@@ -52,7 +74,7 @@ describe('EmployeesPage', () => {
     await findRowByName(mockEmployees[40].name)
 
     expect(dataRows()).toHaveLength(7)
-    expect(screen.getByText('Showing 41–47 of 47')).toBeInTheDocument()
+    expect(screen.getByText('Showing 41-47 of 47')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Go to next page' })).toBeDisabled()
   })
 
@@ -84,11 +106,82 @@ describe('EmployeesPage', () => {
 
     await user.click(screen.getByRole('button', { name: 'Go to next page' }))
     await findRowByName(mockEmployees[10].name)
-    expect(screen.getByText('Showing 11–20 of 47')).toBeInTheDocument()
+    expect(screen.getByText('Showing 11-20 of 47')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Go to previous page' }))
     await findRowByName(mockEmployees[0].name)
-    expect(screen.getByText('Showing 1–10 of 47')).toBeInTheDocument()
+    expect(screen.getByText('Showing 1-10 of 47')).toBeInTheDocument()
+  })
+
+  it('puts the current page in the URL', async () => {
+    const user = userEvent.setup()
+    renderPageWithProbe()
+
+    await findRowByName(mockEmployees[0].name)
+    await user.click(screen.getByRole('button', { name: '3' }))
+    await findRowByName(mockEmployees[20].name)
+
+    expect(screen.getByTestId('search')).toHaveTextContent('?page=3')
+
+    await user.click(screen.getByRole('button', { name: '1' }))
+    await findRowByName(mockEmployees[0].name)
+
+    expect(screen.getByTestId('search')).toBeEmptyDOMElement()
+  })
+
+  it('renders the page named in the URL on first load', async () => {
+    render(<EmployeesPage />, {
+      wrapper: ({ children }) => (
+        <TestAppProviders routerProps={{ initialEntries: ['/employees?page=3'] }}>
+          {children}
+        </TestAppProviders>
+      ),
+    })
+
+    await findRowByName(mockEmployees[20].name)
+
+    expect(dataRows()).toHaveLength(10)
+    expect(screen.getByText('Showing 21-30 of 47')).toBeInTheDocument()
+  })
+
+  it('renders the filter named in the URL on first load', async () => {
+    render(<EmployeesPage />, {
+      wrapper: ({ children }) => (
+        <TestAppProviders routerProps={{ initialEntries: ['/employees?q=Grace%20Hopper'] }}>
+          {children}
+        </TestAppProviders>
+      ),
+    })
+
+    await findRowByName('Grace Hopper')
+
+    expect(dataRows()).toHaveLength(1)
+    expect(screen.getByRole('textbox', { name: /name/i })).toHaveValue('Grace Hopper')
+  })
+
+  it('falls back to the first page for a non-numeric page param', async () => {
+    render(<EmployeesPage />, {
+      wrapper: ({ children }) => (
+        <TestAppProviders routerProps={{ initialEntries: ['/employees?page=abc'] }}>
+          {children}
+        </TestAppProviders>
+      ),
+    })
+
+    await findRowByName(mockEmployees[0].name)
+
+    expect(dataRows()).toHaveLength(10)
+    expect(screen.getByText('Showing 1-10 of 47')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Go to previous page' })).toBeDisabled()
+  })
+
+  it('shows the empty state for a page past the end', async () => {
+    renderPageWithProbe(['/employees?page=99'])
+
+    await screen.findByText('No employees found.')
+
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(screen.getByTestId('search')).toHaveTextContent('?page=99')
   })
 
   it('reports a server error', async () => {
@@ -176,12 +269,9 @@ describe('EmployeesPage', () => {
     expect(requests).toStrictEqual([null, 'Grace Hopper'])
   })
 
-  it('returns to the first page when the filter changes', async () => {
-    const clickUser = userEvent.setup()
-    renderPage()
+  it('drops the page param when the filter changes', async () => {
+    renderPageWithProbe(['/employees?page=3'])
 
-    await findRowByName(mockEmployees[0].name)
-    await clickUser.click(screen.getByRole('button', { name: '3' }))
     await findRowByName(mockEmployees[20].name)
 
     const user = setupFakeTimerUser()
@@ -192,8 +282,18 @@ describe('EmployeesPage', () => {
       await vi.advanceTimersByTimeAsync(300)
     })
 
-    await screen.findByText('Showing 1–10 of 13')
-    expect(screen.getByRole('button', { name: 'Go to previous page' })).toBeDisabled()
+    await screen.findByText('Showing 1-10 of 13')
+    expect(screen.getByTestId('search')).toHaveTextContent('?q=an')
+    expect(screen.getByTestId('search')).not.toHaveTextContent('page')
+
+    await user.clear(filterField)
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(300)
+    })
+
+    expect(filterField).toHaveValue('')
+    expect(screen.getByTestId('search')).toHaveTextContent('')
   })
 
   it('shows the empty state when no employee matches', async () => {

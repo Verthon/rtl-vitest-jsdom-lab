@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router'
 import { useQuery } from '@tanstack/react-query'
 import { Spinner } from '@/components/ui/spinner'
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
@@ -22,15 +23,47 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination'
 import { employeesQueryOptions, PER_PAGE } from './api'
-import { useDebouncedValue } from './useDebouncedValue'
+import { useDebouncedCallback } from './useDebouncedCallback'
+
+function parseSearchParams(searchParams: URLSearchParams) {
+  const rawPage = Number(searchParams.get('page'))
+  const page = Number.isInteger(rawPage) && rawPage >= 1 ? rawPage : 1
+  const q = searchParams.get('q') || undefined
+  return { page, q }
+}
 
 export function EmployeesPage() {
-  const [page, setPage] = useState(1)
-  const [rawQuery, setRawQuery] = useState('')
-  const debouncedQuery = useDebouncedValue(rawQuery, 300)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const { page, q } = parseSearchParams(searchParams)
+  const [rawQuery, setRawQuery] = useState(q ?? '')
   const { data, isPending, isError, error, isPlaceholderData } = useQuery(
-    employeesQueryOptions(page, debouncedQuery || undefined),
+    employeesQueryOptions(page, q),
   )
+
+  const commitQuery = useDebouncedCallback((next: string) => {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current)
+      if (next) {
+        params.set('q', next)
+      } else {
+        params.delete('q')
+      }
+      params.delete('page')
+      return params
+    })
+  }, 300)
+
+  function goToPage(nextPage: number) {
+    setSearchParams((current) => {
+      const params = new URLSearchParams(current)
+      if (nextPage <= 1) {
+        params.delete('page')
+      } else {
+        params.set('page', String(nextPage))
+      }
+      return params
+    })
+  }
 
   if (isPending) {
     return (
@@ -71,7 +104,7 @@ export function EmployeesPage() {
           value={rawQuery}
           onChange={(event) => {
             setRawQuery(event.target.value)
-            setPage(1)
+            commitQuery(event.target.value)
           }}
         />
       </div>
@@ -106,7 +139,7 @@ export function EmployeesPage() {
           </Table>
 
           <p className="mt-2 text-sm text-muted-foreground">
-            Showing {rangeStart}–{rangeEnd} of {total}
+            Showing {rangeStart}-{rangeEnd} of {total}
           </p>
         </>
       )}
@@ -116,7 +149,7 @@ export function EmployeesPage() {
           <PaginationItem>
             <PaginationPrevious
               disabled={page === 1 || isPlaceholderData}
-              onClick={() => setPage(page - 1)}
+              onClick={() => goToPage(page - 1)}
             />
           </PaginationItem>
           {Array.from({ length: lastPage }, (_, index) => index + 1).map((pageNumber) => (
@@ -124,7 +157,7 @@ export function EmployeesPage() {
               <PaginationLink
                 isActive={pageNumber === page}
                 disabled={isPlaceholderData}
-                onClick={() => setPage(pageNumber)}
+                onClick={() => goToPage(pageNumber)}
               >
                 {pageNumber}
               </PaginationLink>
@@ -133,7 +166,7 @@ export function EmployeesPage() {
           <PaginationItem>
             <PaginationNext
               disabled={page >= lastPage || isPlaceholderData}
-              onClick={() => setPage(page + 1)}
+              onClick={() => goToPage(page + 1)}
             />
           </PaginationItem>
         </PaginationContent>
