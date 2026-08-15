@@ -4,7 +4,7 @@
   "jsPlugins": ["eslint-plugin-testing-library", "@tanstack/eslint-plugin-query"],
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+    "react/only-export-components": "off",
   },
   "overrides": [
     {
@@ -40,7 +40,7 @@
         "vitest/prefer-mock-return-shorthand": "error",
 
         "vitest/prefer-strict-equal": "warn",
-        "vitest/prefer-lowercase-title": "warn",
+        "vitest/prefer-lowercase-title": "off",
         "vitest/require-top-level-describe": "warn",
         "vitest/max-nested-describe": ["warn", { "max": 3 }],
         "vitest/no-large-snapshots": ["warn", { "maxSize": 50, "inlineMaxSize": 20 }],
@@ -82,9 +82,9 @@
         "testing-library/prefer-user-event-setup": "error",
         "testing-library/render-result-naming-convention": "error",
 
-        "testing-library/consistent-data-testid": "warn",
-        "testing-library/no-test-id-queries": "warn",
-        "testing-library/prefer-query-matchers": "warn"
+        "testing-library/consistent-data-testid": "error",
+        "testing-library/no-test-id-queries": "error",
+        "testing-library/prefer-query-matchers": "error"
       }
     }
   ]

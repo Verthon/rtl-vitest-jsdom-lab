@@ -10,7 +10,11 @@ import { mockEmployees } from './mocks'
 
 function LocationProbe() {
   const { search } = useLocation()
-  return <output data-testid="search">{search}</output>
+  return <output aria-label="current URL search params">{search}</output>
+}
+
+function locationSearch() {
+  return screen.getByRole('status', { name: 'current URL search params' })
 }
 
 function renderPage() {
@@ -121,12 +125,12 @@ describe('EmployeesPage', () => {
     await user.click(screen.getByRole('button', { name: '3' }))
     await findRowByName(mockEmployees[20].name)
 
-    expect(screen.getByTestId('search')).toHaveTextContent('?page=3')
+    expect(locationSearch()).toHaveTextContent('?page=3')
 
     await user.click(screen.getByRole('button', { name: '1' }))
     await findRowByName(mockEmployees[0].name)
 
-    expect(screen.getByTestId('search')).toBeEmptyDOMElement()
+    expect(locationSearch()).toBeEmptyDOMElement()
   })
 
   it('renders the page named in the URL on first load', async () => {
@@ -181,7 +185,7 @@ describe('EmployeesPage', () => {
     await screen.findByText('No employees found.')
 
     expect(screen.queryByRole('table')).not.toBeInTheDocument()
-    expect(screen.getByTestId('search')).toHaveTextContent('?page=99')
+    expect(locationSearch()).toHaveTextContent('?page=99')
   })
 
   it('reports a server error', async () => {
@@ -283,8 +287,8 @@ describe('EmployeesPage', () => {
     })
 
     await screen.findByText('Showing 1-10 of 13')
-    expect(screen.getByTestId('search')).toHaveTextContent('?q=an')
-    expect(screen.getByTestId('search')).not.toHaveTextContent('page')
+    expect(locationSearch()).toHaveTextContent('?q=an')
+    expect(locationSearch()).not.toHaveTextContent('page')
 
     await user.clear(filterField)
 
@@ -293,7 +297,7 @@ describe('EmployeesPage', () => {
     })
 
     expect(filterField).toHaveValue('')
-    expect(screen.getByTestId('search')).toHaveTextContent('')
+    expect(locationSearch()).toHaveTextContent('')
   })
 
   it('shows the empty state when no employee matches', async () => {
