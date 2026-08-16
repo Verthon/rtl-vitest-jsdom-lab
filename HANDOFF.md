@@ -1,71 +1,71 @@
-# Handoff — 2026-08-14 (session 2)
+# Handoff — 2026-08-16 (session 4)
 
 Read `AGENTS.md` (why the repo exists) and `CONVENTIONS.md` (how to work in it)
 first. This file is where we resume.
 
-## ⚠️ Do this before anything else
+## Session 4 — reconciliation, not new design
 
-**`src/employee-directory/EmployeesPage.tsx` is left in a MUTATED state.** I was
-mutation-checking 006 and the session ended mid-check with the restore
-un-run. Line 30 currently reads:
+Opened by resuming from session 2/3's handoff. Two things had gone stale since
+session 3 wrote it, both resolved this session:
 
-```ts
-const page = rawPage || 1          // MUTATION — the non-numeric guard is gone
-```
+1. **The mutation warning at the old top of this file was already false.**
+   `EmployeesPage.tsx` was clean, correctly guarded, committed — 006 and its
+   negative-page-param follow-up (`tasks/010`, since deleted) had landed and
+   been committed between sessions, outside this document. `npx vitest run src`
+   is **28 passed / 5 files** (not 27 — 010 added one). Full run is **118
+   passed / 8 files**. Confirmed by reading the file and `git log`, not assumed.
+2. **The parallel skill-rework workstream finished and shipped.**
+   `.agents/skills/assertion-precision/` is no longer one file — it is
+   `SKILL.md` plus three sub-files (`cannot-fail.md`,
+   `does-not-name-the-defect.md`, `wrong-subject.md`), committed at `57c2184`
+   and `12c77cb`. `component-mocks` also shipped as a second skill. This
+   answers the split-vs-whole packaging question the *Open* section below
+   deferred to the eval — it was decided elsewhere, by splitting.
 
-and must read:
+**`tasks/009-assertion-precision-eval.md` is deleted, on the user's call, not
+executed.** Its two hard gates — "the skill file is byte-identical to
+`e0e4297`" and "does not edit the skill" — cannot hold against a skill that is
+now four files, and its stated reason for existing (settle the packaging
+question) is moot now that packaging is already decided. Rewriting it for the
+new shape was offered and declined; the user said the shipped skill split
+covers what 009 was for.
 
-```ts
-const page = Number.isInteger(rawPage) && rawPage >= 1 ? rawPage : 1
-```
-
-Fix that one line by hand. **Do not `git checkout` the file** — every other
-change in it is Sonnet's 006 work and is uncommitted, so a checkout throws the
-task away. There was a pristine copy in a session scratchpad; that directory is
-session-scoped and should be assumed gone.
-
-Then confirm `npx vitest run src` is back to **27 passed**. If the count differs,
-something else moved — investigate before continuing.
-
-The lesson, which is now a rule in *Method*: a mutation check must restore in the
-same tool call that mutates, not a later one.
+Draft cleanup (12 duplicate `* copy*.md` files, plus the `ASSERTION_PRECISION`
+and `COMPONENT_MOCKS` base drafts now that both have shipped skills) was
+already staged in the working tree from an uncommitted prior session and is
+now committed separately, per *Method*'s workstream-separation rule.
 
 ## Resume here
 
-**006 is executed by Sonnet and partially verified. Verification is the first
-real work item.** Then `tasks/009` (the eval). The packaging redesign comes after
-009 and only after it, for the reason in *Open*.
+**Everything through 006 / 008 / 009 / 010 is done, verified, and committed.**
+The open front is test altitude — `011` → `012` → `013`, in that order, per
+session 3's design below. `013` is still blocked on one decision (framing:
+coverage vs. mocking vs. naming) that only the maintainer can make; see
+*Session 3 — test altitude*.
 
 | Task | State |
 |---|---|
+| `tasks/011-test-speed-cost-model.md` | **Ready, unexecuted. Depends on 012.** Lab task: measures where RTL test time actually goes |
+| `tasks/012-employee-onboarding-slice.md` | **Ready, unexecuted. Run before 011.** Ships a real 10-step onboarding slice as 011's `huge` tier |
+| `tasks/013-test-altitude-skill.md` | **NOT ready — one open decision.** The skill itself. See *Session 3* below |
 | `tasks/005-debounced-filter.md` | Executed, reviewed, accepted. Kept only because 006 step 8 refers to it |
-| `tasks/006-url-search-param-state.md` | **Executed by Sonnet, verification incomplete.** See *006 — what was checked* below. Do not delete the file until verification closes |
 | `tasks/007-home-landing-page.md` | Ready. Audited and patched. Independent |
-| ~~`tasks/008`~~ | **Executed 2026-08-14, file deleted.** What survives is in this document |
-| `tasks/009-assertion-precision-eval.md` | **Ready, unexecuted.** Review-only eval for the skill. Scope decided: pinned fixtures + `evals.json`, no generation cases, no automated scorer. Forbids editing the skill so the baseline stays honest. **May be superseded — see the parallel skill workstream below** |
 
 Completed task files get deleted — git holds the history, and whatever outlives
-the task belongs here or in the skill itself. 008 was the first to go.
+the task belongs here or in the skill itself. 008, 009, 010 are gone this way.
 
-## Parallel workstream — the skill is being reworked elsewhere
+## Parallel workstream — resolved in session 4
 
-The user is working with **another agent** on
-`.agents/skills/assertion-precision/SKILL.md`, to bring it in line with skill
-authoring best practices and to give it a proper eval.
+Was: the user working with another agent on
+`.agents/skills/assertion-precision/SKILL.md` to bring it in line with skill
+authoring best practices and give it a proper eval, overlapping `tasks/009`.
 
-**This overlaps `tasks/009` directly, and 009 has not started.** Before executing
-009, find out what that workstream produced — it may have already built the eval,
-or changed the skill's shape enough that 009's case list no longer matches. Two
-specific collision points:
-
-- 009 forbids editing the skill, so its baseline measures the skill *as of
-  `e0e4297`*. If the other agent has rewritten it, that baseline is measuring a
-  file that no longer exists and 009 needs re-scoping, not executing.
-- 009's packaging question (split into sub-skills vs. leave whole) is exactly
-  what a best-practices pass would touch. If that call has already been made
-  elsewhere, 009's step 6 is answering a settled question.
-
-Do not execute 009 on the assumption it is still current. Reconcile first.
+**Resolved.** That workstream shipped: the skill is now `SKILL.md` plus three
+sub-files, committed at `57c2184` / `12c77cb`. `tasks/009` was read against the
+new shape, found unexecutable as written (both hard gates assume one file), and
+deleted rather than rewritten — the user's call, since the packaging question
+009 existed partly to answer is now moot. No eval exists for the skill; that is
+open work if wanted, not something this session produced.
 
 ## Verification state — measured this session
 
@@ -270,87 +270,134 @@ falsified two such claims during 008.
 
 ## Open — needs your call
 
-1. **Finish verifying 006.** First, because a mutated file is sitting in the tree
-   and because everything else is downstream of a clean baseline. The owed
-   mutation checks are listed in *006 — what was checked*. Two loose ends beyond
-   the mutations: the oxlint baseline moving 8 → 14 (decide whether the
-   `LocationProbe` should stop using `data-testid`), and the push-vs-replace and
-   stale-closure decisions that 006 explicitly shipped **without gates** — both
-   still rest on review alone, and 006 says so in its Decisions section.
+Renumbered in session 4; items resolved since session 2 are marked and kept
+only long enough to record how they closed. Do not cross-reference by number
+across sessions — per *Method*, state the substance, not the ordinal.
 
-2. **Reconcile the skill rework with `tasks/009`.** The user is working with
-   another agent on the skill's best-practices pass and its eval. 009 was written
-   against the `e0e4297` skill and forbids editing it. Read what the other
-   workstream produced *before* touching 009; do not execute it on the assumption
-   it is still current. Details in *Parallel workstream* above.
+**Resolved since session 2, confirmed this session by reading current state:**
 
-3. **Write the eval.** Scoped as `tasks/009` — read that, not this paragraph, for
-   the design, and read item 2 before starting it. Two calls made while writing
-   it, recorded because they narrow the vendored precedent:
+- 006's owed mutation checks, the oxlint baseline move, and the push/replace +
+  stale-closure decisions — 006 and its follow-up (`tasks/010`, since deleted)
+  are committed. `LocationProbe` no longer uses `data-testid` — oxlint is
+  clean at **0 warnings**, not 8 or 14.
+- The skill rework / `tasks/009` reconciliation — resolved, see *Parallel
+  workstream* above. 009 deleted, not executed.
+- Sub-skills / progressive disclosure — decided by the parallel workstream:
+  split into `SKILL.md` + `cannot-fail.md` + `does-not-name-the-defect.md` +
+  `wrong-subject.md`. No eval was built to measure whether it helped; the
+  argument recorded in session 2 against splitting was never tested, only
+  overtaken.
+- 006 and 008 committed separately — done, and further, both are now several
+  commits in the past. The interleaved-tree revert hazard no longer exists.
+- Duplicated drafts — `git rm`'d this session, see top of file.
 
-   - **Review-only.** `.agents/skills/shadcn/evals/evals.json` is a *generation*
-     eval: a prompt, no input files, prose expectations about what an agent
-     writes. Our skill is used mostly to review existing specs, and step 6's
-     seeded/overlap runs were review runs. The authoring half of the skill's
-     `description` is therefore unmeasured — a later task, not a 009 stretch goal.
-   - **The precedent is prose-only and nothing runs it.** That is the weakest
-     form under this repo's *measured, not remembered* rule, so 009 adds real
-     fixture files and a spec that pins them — line numbers, and proof that every
-     seeded defect sits on the uncaught side of the oxlint boundary. Grading an
-     agent's findings is still a hand read; an API-invoking scorer was rejected
-     as its own project.
+**Still open:**
 
-   Fixtures are `.fixture.ts`, never `.spec.ts` — `lab/**/*.spec.ts` is in the
-   vitest include glob, so a fixture named that way gets *executed* by the suite
-   it is supposed to be an inert input to.
+1. **008 has had no independent review pass.** It was executed by the same
+   agent that wrote it. 005 got a two-finding review that caught a vacuous
+   assertion; 008 has had nothing equivalent, and the parallel rework's review
+   (if any) is not recorded here.
+2. **Knip baseline still dirty** — 1 unused file (`dialog.tsx`), 13 unused
+   exports, 1 unused type, re-measured this session and unchanged from
+   session 2's figure. Until deliberately triaged, "scan:dead-code passes"
+   means nothing to a future agent without diffing the export list by hand.
+3. **Does the fake-timer finding become a `TESTING_PITFALLS.md` entry?** With
+   the upstream links it is a documented ecosystem gap, not a local war story.
+4. **Flaky delay test** — `shows the loading state until a delayed response
+   arrives` still races a real `setTimeout(50)` against a 100ms helper delay.
+   Confirmed still present at `EmployeesPage.spec.tsx:335`, unchanged.
+5. **No eval exists for `assertion-precision`.** 009 was deleted rather than
+   rewritten. If an eval is still wanted against the current 4-file skill,
+   that is new scoping work, not a resurrection of 009 — its byte-identical
+   and "settle packaging" framing no longer apply.
+6. **Next skill after this one: `TEST_THAT_CANNOT_FAIL`** — three worked
+   examples in-repo, and its verification move is already binding method
+   here. The packaging question that gated this is now settled (split), so
+   nothing blocks starting it except priority against 011/012/013.
 
-4. **Sub-skills / progressive disclosure — proposed, and I pushed back.** Likely
-   in scope for the parallel rework, so this may be decided elsewhere before it is
-   decided here. The concern is real: an agent reviewing 2 tests with 2 mistakes
-   loads all 120 lines. My argument against splitting *as described*, recorded so
-   it can be overruled with evidence rather than re-litigated:
+## Session 3 (2026-08-15) — test altitude. Design only.
 
-   - 120 lines ≈ 1.5k tokens. A router that describes 5 moves well enough to
-     choose between them is ~30 lines, so the saving is smaller than it looks,
-     and it buys a second file read plus a routing decision.
-   - **The moves are not independent.** One assertion often trips Move 1 (where
-     did the boolean come from) *and* Move 3 (does it pass on broken data). The
-     "2 mistakes → 1 leaf" assumption is the load-bearing one, and it is exactly
-     what the eval can measure.
-   - The only clean seam in the current file is **Move 4, which is DOM-only**
-     (~18 lines). Moves 1–3 apply to every spec. Carving out 18 lines behind a
-     router is not worth it.
+No code written, no skill touched. Output is three task files and the findings
+below.
 
-   **The bigger context win is probably a cheaper trigger, not a split** — the
-   real waste is loading this at all on a spec with no assertion problems. That
-   is a `description` frontmatter question, and the eval can measure it directly
-   by including specs that should produce zero findings.
+### The pitfall, and that it is genuinely new
 
-   Decide after the eval reports. If it shows single-move invocations dominate,
-   the split is justified and I am wrong.
+People test leaves of the component tree instead of the page-level journey,
+defending it on speed. **It is not in `TESTING_PITFALLS.md`** — 13 entries, none
+of them this. Not a distillation of an existing draft; new problem space. It
+splits into A (wrong entry point), B (wrong assertion altitude), C (journey
+skipped by seeding state or mocking the navigator). Full statement in
+`tasks/013`.
 
-5. **Commit 006 and 008 separately.** Cheapest way to end the revert hazard the
-   interleaved tree has reintroduced. Nothing blocks it once 006 verification
-   closes.
-6. **008 has had no review pass.** It was executed by the same agent that wrote
-   it, which is the weakest possible review position. 005 got a two-finding
-   review that caught a vacuous assertion; 008 has had nothing equivalent. The
-   parallel rework may absorb this.
-7. **Knip baseline is still dirty** — `src/components/ui/dialog.tsx` unused plus
-   vendored exports. Until settled, "scan:dead-code passes" means nothing to a
-   future agent without diffing by hand. 007 shrinks it slightly.
-8. **Duplicated drafts.** All 12 `* copy*.md` files are byte-identical to their
-   base and tracked in git. Safe to `git rm`; say the word. A glob over
-   `DRAFT_FE_TESTING_*.md` returns 25 files, 12 of them dupes.
-9. **Does the fake-timer finding become a `TESTING_PITFALLS.md` entry?** With the
-   upstream links it is a documented ecosystem gap, not a local war story.
-10. **Flaky delay test** — `shows the loading state until a delayed response
-    arrives` still races a real `setTimeout(50)` against a 100ms helper delay.
-    Survived 006 unchanged; still at spec lines 315–329.
-11. **Next skill after this one: `TEST_THAT_CANNOT_FAIL`** — three worked examples
-    in-repo, and its verification move is already binding method here. Do not
-    start it until the packaging question settles, or it will be built in the
-    wrong shape too.
+**`CORP_TESTING_PITFALLS_EXAMPLES.md` is the strongest evidence in the repo for
+it** and had been overlooked. Its opening specimen is case C from production —
+a Stepper spec mocking `useSteppedNavigationContext` to force `processStep: 1`.
+That file is mostly *about* this pitfall, and the pitfalls list does not have it.
+
+### Three drafts each own a fragment
+
+- `BEHAVIOR_VS_STATE` gets closest and stops one step short. Its move — *would
+  this test still pass if internals were restructured?* — is the altitude
+  question, but the draft applies it only to assertions within a component. The
+  step it never takes: **the component you chose to mount is itself an internal
+  arrangement.**
+- `ONE_REASON_TO_FAIL` already distinguishes "one story with checkpoints" from
+  "separate claims sharing a render" — that is the legitimate-vs-substitute test,
+  applied to assertions rather than to placement.
+- `MOCKING_AS_DIAGNOSIS` has the deepest unwritten version: if the journey test
+  is unbearable to write, that is a signal about the app, not about the test.
+
+### Deep research — what it settled
+
+Run by the user on claude.ai. Full findings in `tasks/013`; the two that bind:
+
+1. **Nobody has made altitude mechanical, and the rejection is in our own
+   toolchain.** `eslint-plugin-testing-library` #373 (`prefer-appearance`) was
+   declined — "we can't infer how the component is written". `typescript-eslint`
+   #5923 closed `wontfix` on "unresolvable false-positives". This is a citation
+   for the skill's existence: the maintainers of the plugin this repo runs 27
+   rules from, locating the boundary where `AGENTS.md` says we live.
+   ⚠️ **#373's attribution is unverified** — the research flagged that the
+   maintainer's username was inferred. Confirm before citing.
+2. **The predicate has prior art; do not invent one.** Cucumber's docs: *"Will
+   this wording need to change if the implementation does?"* — the only criterion
+   found that applies to a single test, answers yes/no, and transfers to React.
+   It is the same move `BEHAVIOR_VS_STATE` already makes.
+
+**One finding cuts against the skill and must be carried, not buried:** Trautsch
+& Grabowski mutation-tested 38,782 tests across 17 projects and found **neither
+unit nor integration better at detecting defect types.** "Test higher because it
+catches more bugs" is therefore not available. The argument has to be about what
+is verified — a journey versus a prop contract — which is stronger but different.
+
+### ⛔ The decision that blocks `tasks/013`
+
+The skill can frame altitude as **coverage** (is this leaf the only thing proving
+the behavior?), **mocking** (what did you mock to skip the journey?), or
+**naming** (does the name describe a user goal or a prop?). Research pushes
+toward coverage; the corp specimen shows mocking; mocking risks colliding with
+the shipped `component-mocks`. **The maintainer makes this call.** Scope —
+single-file vs. spec+component vs. whole-suite — follows from it, and the tension
+is that the best-supported framing is the one needing the widest scope.
+
+### 011 / 012 — the speed objection
+
+The standing defence of leaf tests is CI time. 011 measures where RTL test time
+actually goes; 012 ships the subject it measures against (a real 10-step
+onboarding slice, because a synthetic 10k-node table measures uniform trees and
+real slowness comes from role variety, state, and routing). Design B was chosen
+deliberately: tiers are real components, so **size and kind move together and no
+cross-tier ratio is a claim about tree size** — 011 carries that confound as a
+gate on `COSTS.md`.
+
+**If 011 finds the objection substantially correct, 013's argument changes
+shape.** That is a live outcome, not a formality.
+
+### Still needed from the maintainer
+
+Three or four more real corp specimens. One Stepper example is thin for a skill,
+and the pipeline below says a pitfall earns a rule when the repo holds instances
+of it.
 
 ## The skill pipeline — evidence-first. Decided.
 
