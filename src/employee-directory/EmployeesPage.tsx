@@ -23,7 +23,7 @@ import {
   PaginationPrevious,
 } from '@/components/ui/pagination'
 import { employeesQueryOptions, PER_PAGE } from './api'
-import { useDebouncedCallback } from './useDebouncedCallback'
+import { useDebouncedCallback } from '@/lib/useDebouncedCallback'
 
 function parseSearchParams(searchParams: URLSearchParams) {
   const rawPage = Number(searchParams.get('page'))
