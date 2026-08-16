@@ -12,7 +12,9 @@ rules a linter could express.
 
 - `TESTING_PITFALLS.md` — the current list, one to two sentences each.
 - `DRAFT_FE_TESTING_*.md` — longer, unreviewed explorations of individual
-  pitfalls. Draft status: not distilled, not yet turned into skills.
+  pitfalls. Draft status: not distilled, not yet turned into skills. A draft
+  is deleted once its skill ships — the skill is then the only write-up, and
+  `TESTING_PITFALLS.md` points at it instead.
 - `lab/` — executable probes about the tooling itself, not about the app.
   `lab/assertion-precision/` measures what a failing assertion actually prints
   and how much of that oxlint already enforces; it backs the skill of the same
