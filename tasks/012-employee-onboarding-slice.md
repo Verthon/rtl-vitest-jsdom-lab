@@ -105,6 +105,52 @@ reuse it via its own slice? No: slices do not import from each other. Add a
 responses from the request per `CONVENTIONS.md` — the manager search must
 actually filter on `q`, or 011's async probe measures a canned response.
 
+## ⚠️ Routing trap — resolve this before step 5, not during it
+
+`TestAppProviders` (`src/testsConfig/TestAppProviders.tsx`) wraps `children` in
+a bare `MemoryRouter` — no `<Routes>`, no route matching. Every existing spec
+renders the page component directly as a child
+(`render(<EmployeesPage />, { wrapper: TestAppProviders })`), which works for
+`EmployeesPage` because `useSearchParams` only needs a router context, not a
+route match.
+
+**This does not work for `/onboarding/:step`.** `useParams()` returns `{}`
+unless the component is rendered through an actual matched route, and
+`useNavigate()`-driven URL changes are not observable as route re-renders
+without one. No spec in this repo has ever rendered a param-route component —
+confirmed by grep, not assumed. Discovering this mid-step-5 wastes a session;
+resolve it here.
+
+**The fix, decided:** the react-router team's own recommended pattern (per
+`remix-run/react-router` testing examples, matching what `src/main.tsx`
+already does in production) is `createMemoryRouter(routes, { initialEntries })`
++ `<RouterProvider router={router} />`, not `MemoryRouter` + bare children.
+
+Extend `TestAppProviders` **additively** — do not change its existing
+signature or behavior, since `EmployeesPage.spec.tsx` depends on the current
+one:
+
+```tsx
+type TestAppProvidersProps = {
+  children?: ReactNode
+  routes?: RouteObject[]
+  routerProps?: ComponentProps<typeof MemoryRouter>
+  queryClient?: QueryClient
+}
+```
+
+When `routes` is passed, build `createMemoryRouter(routes, { initialEntries: routerProps?.initialEntries })`
+and render `<RouterProvider router={router} />` instead of
+`<MemoryRouter>{children}</MemoryRouter>`. When `routes` is omitted, behavior
+is byte-identical to today. `OnboardingPage.spec.tsx` passes `routes:
+onboardingRoutes` (or a local equivalent covering `/onboarding/:step`) and
+`routerProps: { initialEntries: [...] }`; it does not pass `children`.
+
+**Gate this before continuing to step 5:** run
+`npx vitest run src/employee-directory` after the `TestAppProviders` change,
+unmodified otherwise — if any existing test breaks, the extension was not
+additive and must be fixed before it touches the onboarding spec.
+
 ## Steps
 
 1. **Types first.** `src/employee-onboarding/types.ts` — the draft shape, the
@@ -119,8 +165,13 @@ actually filter on `q`, or 011's async probe measures a canned response.
 3. **The page and steps.** `OnboardingPage.tsx` owns draft state and renders the
    current step. Steps are flat files in the slice until there are 3+ of a kind,
    per `CONVENTIONS.md` — ten step components *are* 3+ of a kind, so
-   `steps/` is correct here. Use existing `components/ui/` primitives; add
-   shadcn components only via `npx shadcn@latest add`, only ones this task needs.
+   `steps/` is correct here. `components/ui/` currently has only `alert`,
+   `button`, `card`, `dialog`, `empty`, `input`, `label`, `pagination`,
+   `spinner`, `table` — none of the shape needed for combobox, checkbox,
+   select, or date input, so this step needs new ones. **Invoke the `shadcn`
+   skill** to pick and add the right components (a combobox is `Command` +
+   `Popover` composed, not one component — do not guess the mapping) via
+   `npx shadcn@latest add`, only the ones this task uses.
 
 4. **Routes.** `routes.tsx` exporting `onboardingRoutes`, `lazy` per the mapped
    named-export form, `HydrateFallback: PageLoader`. Spread into
