@@ -38,15 +38,30 @@ now committed separately, per *Method*'s workstream-separation rule.
 ## Resume here
 
 **Everything through 006 / 008 / 009 / 010 is done, verified, and committed.**
-The open front is test altitude — `011` → `012` → `013`, in that order, per
-session 3's design below. `013` is still blocked on one decision (framing:
-coverage vs. mocking vs. naming) that only the maintainer can make; see
-*Session 3 — test altitude*.
+The open front is test altitude — `014` → `012` → `011` → `013`, in that
+order. `013` is still blocked on one decision (framing: coverage vs. mocking
+vs. naming) that only the maintainer can make; see *Session 3 — test
+altitude*.
+
+**`014` is new this session, split out of `012`.** The user had already
+installed `@stepperize/react` for the onboarding wizard's stepper. That
+library owns step state internally by default, which collides with `012`'s
+requirement that the URL be the source of truth for the current step (the
+`006`/003 lesson — internal state can drift from the URL while tests stay
+green). The library supports URL-controlled mode natively
+(`useStepper({ step, onStepChange })`), so the fix is real, not a workaround —
+but wiring it, plus the `TestAppProviders` routing extension it needs
+(`useParams()` requires actual route matching; no spec in this repo has ever
+done that), is risky enough and novel enough to deserve its own isolated test
+seam rather than being buried under ten onboarding step components. `012` was
+edited to depend on `014`'s output instead of building the routing plumbing
+itself.
 
 | Task | State |
 |---|---|
+| `tasks/014-stepper-primitive.md` | **Ready, unexecuted. Run first.** Split out of 012: URL-synced `@stepperize/react` wrapper + `TestAppProviders` `routes` extension, isolated behind its own fixture-based test seam |
+| `tasks/012-employee-onboarding-slice.md` | **Ready, unexecuted. Depends on 014.** Ships a real 10-step onboarding slice as 011's `huge` tier |
 | `tasks/011-test-speed-cost-model.md` | **Ready, unexecuted. Depends on 012.** Lab task: measures where RTL test time actually goes |
-| `tasks/012-employee-onboarding-slice.md` | **Ready, unexecuted. Run before 011.** Ships a real 10-step onboarding slice as 011's `huge` tier |
 | `tasks/013-test-altitude-skill.md` | **NOT ready — one open decision.** The skill itself. See *Session 3* below |
 | `tasks/005-debounced-filter.md` | Executed, reviewed, accepted. Kept only because 006 step 8 refers to it |
 | `tasks/007-home-landing-page.md` | Ready. Audited and patched. Independent |

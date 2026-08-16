@@ -90,12 +90,21 @@ a wizard is the natural place for that pitfall to recur. It also means 011
 measures a journey that involves real navigation, which was the point of
 including routing.
 
+**Split out: `tasks/014-stepper-primitive.md` builds the URL↔step sync and the
+progress-indicator UI, using `@stepperize/react`. Depend on it — do not
+reimplement any part of it here.** It ships `useUrlStepper` (or equivalent) plus
+the `TestAppProviders` `routes` extension needed to test anything using
+`useParams()` — confirm 014's own gate is green before starting step 3 below,
+and consume its hook there rather than talking to
+`useParams`/`useNavigate`/`@stepperize/react` directly.
+
 **State.** Draft answers persist across steps and survive navigating backward.
-Use React state lifted to the route-level component plus URL for the step index —
-**no store library.** A store would add a dependency for one feature, and knip is
-part of done. If cross-step state proves genuinely unmanageable that way, that is
-a finding for the handoff and a follow-up task, not a licence to add Zustand
-mid-task.
+Use React state lifted to the route-level component; the step *index* comes
+from 014's `useUrlStepper`, not from this task's own `useState` or router
+code — **no store library.** A store would add a dependency for one feature,
+and knip is part of done. If cross-step state proves genuinely unmanageable
+that way, that is a finding for the handoff and a follow-up task, not a
+licence to add Zustand mid-task.
 
 **API.** `GET /onboarding/options` for the fetched lists (departments, roles,
 equipment). `GET /employees?q=` is already available for the manager search —
@@ -104,52 +113,6 @@ reuse it via its own slice? No: slices do not import from each other. Add a
 /onboarding` for submit, returning the created employee. Handlers compute
 responses from the request per `CONVENTIONS.md` — the manager search must
 actually filter on `q`, or 011's async probe measures a canned response.
-
-## ⚠️ Routing trap — resolve this before step 5, not during it
-
-`TestAppProviders` (`src/testsConfig/TestAppProviders.tsx`) wraps `children` in
-a bare `MemoryRouter` — no `<Routes>`, no route matching. Every existing spec
-renders the page component directly as a child
-(`render(<EmployeesPage />, { wrapper: TestAppProviders })`), which works for
-`EmployeesPage` because `useSearchParams` only needs a router context, not a
-route match.
-
-**This does not work for `/onboarding/:step`.** `useParams()` returns `{}`
-unless the component is rendered through an actual matched route, and
-`useNavigate()`-driven URL changes are not observable as route re-renders
-without one. No spec in this repo has ever rendered a param-route component —
-confirmed by grep, not assumed. Discovering this mid-step-5 wastes a session;
-resolve it here.
-
-**The fix, decided:** the react-router team's own recommended pattern (per
-`remix-run/react-router` testing examples, matching what `src/main.tsx`
-already does in production) is `createMemoryRouter(routes, { initialEntries })`
-+ `<RouterProvider router={router} />`, not `MemoryRouter` + bare children.
-
-Extend `TestAppProviders` **additively** — do not change its existing
-signature or behavior, since `EmployeesPage.spec.tsx` depends on the current
-one:
-
-```tsx
-type TestAppProvidersProps = {
-  children?: ReactNode
-  routes?: RouteObject[]
-  routerProps?: ComponentProps<typeof MemoryRouter>
-  queryClient?: QueryClient
-}
-```
-
-When `routes` is passed, build `createMemoryRouter(routes, { initialEntries: routerProps?.initialEntries })`
-and render `<RouterProvider router={router} />` instead of
-`<MemoryRouter>{children}</MemoryRouter>`. When `routes` is omitted, behavior
-is byte-identical to today. `OnboardingPage.spec.tsx` passes `routes:
-onboardingRoutes` (or a local equivalent covering `/onboarding/:step`) and
-`routerProps: { initialEntries: [...] }`; it does not pass `children`.
-
-**Gate this before continuing to step 5:** run
-`npx vitest run src/employee-directory` after the `TestAppProviders` change,
-unmodified otherwise — if any existing test breaks, the extension was not
-additive and must be fixed before it touches the onboarding spec.
 
 ## Steps
 
@@ -162,9 +125,10 @@ additive and must be fixed before it touches the onboarding spec.
    that a `q` search is meaningfully filtering (~50). Register in
    `src/mocks/handlers.ts`.
 
-3. **The page and steps.** `OnboardingPage.tsx` owns draft state and renders the
-   current step. Steps are flat files in the slice until there are 3+ of a kind,
-   per `CONVENTIONS.md` — ten step components *are* 3+ of a kind, so
+3. **The page and steps.** `OnboardingPage.tsx` owns draft state, calls 014's
+   `useUrlStepper` for step navigation, and renders the current step plus 014's
+   progress indicator. Steps are flat files in the slice until there are 3+ of
+   a kind, per `CONVENTIONS.md` — ten step components *are* 3+ of a kind, so
    `steps/` is correct here. `components/ui/` currently has only `alert`,
    `button`, `card`, `dialog`, `empty`, `input`, `label`, `pagination`,
    `spinner`, `table` — none of the shape needed for combobox, checkbox,
@@ -173,9 +137,12 @@ additive and must be fixed before it touches the onboarding spec.
    `Popover` composed, not one component — do not guess the mapping) via
    `npx shadcn@latest add`, only the ones this task uses.
 
-4. **Routes.** `routes.tsx` exporting `onboardingRoutes`, `lazy` per the mapped
-   named-export form, `HydrateFallback: PageLoader`. Spread into
-   `routing/router.tsx`.
+4. **Routes.** `routes.tsx` exporting `onboardingRoutes` with a `/onboarding/:step`
+   path (plus a bare `/onboarding` that redirects to the first step — decide the
+   redirect mechanism, index route vs. loader vs. component-level `Navigate`, and
+   record which), `lazy` per the mapped named-export form, `HydrateFallback:
+   PageLoader`. Spread into `routing/router.tsx`. 014's fixture route in its own
+   spec is not this — this step is the real, production route tree.
 
 5. **Tests — the page seam only.** `OnboardingPage.spec.tsx`, through
    `TestAppProviders`. Cover at minimum: walking forward several steps, going
