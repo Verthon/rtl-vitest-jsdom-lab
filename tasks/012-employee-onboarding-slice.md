@@ -106,6 +106,22 @@ and knip is part of done. If cross-step state proves genuinely unmanageable
 that way, that is a finding for the handoff and a follow-up task, not a
 licence to add Zustand mid-task.
 
+**The boundary between a step and everything around it is props down, events
+up — not a step reaching into shared infrastructure.** A step component:
+
+- Never calls `useNavigate`, never touches the stepper object from 014. It
+  receives `onNext(stepAnswers)` / `onBack()` as props and calls them; the
+  parent (via `useUrlStepper`) decides what that resolves to.
+- Never owns the answer it is collecting in local `useState`. It receives its
+  slice of the draft as a prop and reports changes up. The parent is the
+  single source of truth for the whole draft — this is what makes "go back,
+  the answer is still there" and step 10's review both possible.
+- **Does** own genuinely local, ephemeral state: an in-flight fetch (manager
+  search, role/department options), a field's touched/focus state,
+  in-progress input before it's committed on blur or submit. Forcing this
+  upward too would be over-engineering with no payoff — it never needs to
+  survive a step change.
+
 **API.** `GET /onboarding/options` for the fetched lists (departments, roles,
 equipment). `GET /employees?q=` is already available for the manager search —
 reuse it via its own slice? No: slices do not import from each other. Add a
@@ -144,15 +160,36 @@ actually filter on `q`, or 011's async probe measures a canned response.
    PageLoader`. Spread into `routing/router.tsx`. 014's fixture route in its own
    spec is not this — this step is the real, production route tree.
 
-5. **Tests — the page seam only.** `OnboardingPage.spec.tsx`, through
-   `TestAppProviders`. Cover at minimum: walking forward several steps, going
-   back and finding an answer still there, the async manager search, a validation
-   block on submit, and **the URL carrying the step** — that last one is the
-   assertion 003 taught us to write explicitly.
+5. **Tests — the page seam only, two different shapes, do not conflate them.**
+   `OnboardingPage.spec.tsx`, through `TestAppProviders`. Both shapes render
+   through the same page component; they differ in what they walk and what
+   they're worth.
 
-   This spec is also 011's honest baseline for "what a real high-level test
-   costs", so write it the way you would actually write it, not optimised for
-   speed. If it is slow, that is data.
+   **A. Journey tests — 1 or 2, expensive, few.** Start at step 1 (or wherever
+   `/onboarding` redirects to) and walk forward through several real steps,
+   go back and confirm an earlier answer survived, submit, and confirm the
+   `POST` payload. This is the whole reason the slice exists: it's 011's
+   honest baseline for "what a real high-level test costs", so write it the
+   way you would actually write it, not optimised for speed. If it is slow,
+   that is data. One happy path is not enough on its own if a business rule
+   genuinely branches the journey (e.g. a role that skips the manager step) —
+   add a second only for a real branch, not for coverage padding.
+
+   **B. Per-step tests — many, cheap, land directly on the step under test.**
+   Disabled-`Next` conditions, required-field errors, date-picker range rules,
+   input validation, the manager search actually filtering — these do not
+   need to walk the journey to reach the step being tested. Use
+   `initialEntries: ['/onboarding/6']` (014's routing extension makes this
+   land directly on step 6, no clicking through 1–5 first) the same way
+   `EmployeesPage.spec.tsx` already lands directly on `page=3` rather than
+   paginating there by hand. A validation test that always walks from step 1
+   is slow for no reason and silently exercises five unasserted steps as a
+   side effect — the same "logic in tests" smell in miniature, just at
+   journey altitude instead of assertion altitude.
+
+   Both shapes must still prove **the URL carries the step** — that's the
+   assertion 003 taught us to write explicitly, and it's cheap to include in
+   either shape.
 
 6. **Record the tier facts 011 needs.** 011 pins tiers by node count and requires
    interactive-element density to be written down. Measuring that is 011's job,
@@ -179,7 +216,11 @@ actually filter on `q`, or 011's async probe measures a canned response.
 - Handlers compute from the request. A manager search that ignores `q` fails this
   task, because it silently converts 011's async probe into a measurement of
   nothing.
-- No step component has its own spec. Tests are at the page seam.
+- No step component has its own spec. Tests are at the page seam, in both
+  shapes from step 5 — a suite with only a journey test and no per-step
+  validation tests (or vice versa) fails this gate.
+- Per-step tests land on their step via `initialEntries`, not by walking the
+  journey from step 1.
 - Render is deterministic — same draft, same tree, every time.
 - No store library, no validation library added.
 - Ten steps exist and their role density genuinely differs; ten identical input
