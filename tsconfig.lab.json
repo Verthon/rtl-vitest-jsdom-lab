@@ -3,8 +3,12 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.lab.tsbuildinfo",
     "target": "es2023",
     "lib": ["ES2023", "DOM"],
-    "types": ["node", "@testing-library/jest-dom"],
+    "types": ["node", "@testing-library/jest-dom", "vitest/globals", "vite/client"],
     "skipLibCheck": true,
+    "jsx": "react-jsx",
+    "paths": {
+      "@/*": ["./src/*"]
+    },
 
     "module": "esnext",
     "moduleResolution": "bundler",
