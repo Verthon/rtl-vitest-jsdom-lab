@@ -1,32 +1,86 @@
-# React + TypeScript + Vite
+# RTL / Vitest / happy-dom lab
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+## Goal
 
-Currently, two official plugins are available:
+Find the test mistakes that survive code review. Not the ones a linter
+catches — the judgment calls.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Each mistake becomes a skill an agent can apply when reviewing or writing
+tests. Claims get measured here first, so a skill can say "6x", not "slower".
 
-## React Compiler
+The app under `src/` exists only to give the probes something real to run
+against.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## The three labs
 
-## Expanding the Oxlint configuration
+Every lab is executable. Run one and you reproduce its numbers.
 
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
+### `lab/assertion-precision/`
 
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+**Question:** when an assertion fails, does the message name the bug?
+
+Runs a coarse assertion and a precise one against the same broken value, then
+captures what each one actually printed. Also lints both forms with this
+repo's own config, to see where oxlint already covers you and where only a
+reviewer does.
+
+**Findings:** `lab/assertion-precision/MATRIX.md` — a matcher per data type,
+plus the rule that enforces it (or `judgment` when nothing does).
+
+### `lab/component-mocks/`
+
+**Question:** does TypeScript notice when a mocked component drifts from the
+real one?
+
+Typechecks a mock against a changed component. Renaming a prop is caught.
+Adding one is not.
+
+**Findings:** `.agents/skills/component-mocks/SKILL.md`.
+
+### `lab/test-speed/`
+
+**Question:** what do RTL, jest-dom and happy-dom actually cost?
+
+Measures queries, assertions, async helpers and module imports. Everything is
+a ratio between two forms in the same run, on the same tree, at three tree
+sizes. Ratios under the measured noise floor are reported as *too close to
+call*.
+
+**Findings:** `RTL_COST.md` is the one page to read. `lab/test-speed/COSTS.md`
+is the full write-up with method and caveats.
+
+## Where everything lives
+
+| File | What it is |
+|---|---|
+| `TESTING_PITFALLS.md` | The problem space. Every pitfall, one or two sentences. |
+| `RTL_COST.md` | What RTL costs, short version. |
+| `lab/test-speed/COSTS.md` | What RTL costs, long version. |
+| `lab/assertion-precision/MATRIX.md` | Which matcher, and who enforces it. |
+| `.agents/skills/*/SKILL.md` | Shipped skills. The finished form of a pitfall. |
+| `DRAFT_FE_TESTING_*.md` | Pitfalls not yet distilled into a skill. Deleted when the skill ships. |
+| `CONVENTIONS.md` | Structure, mock contract, verification. Read before writing code. |
+| `tasks/NNN-*.md` | Scoped work items. |
+
+## Running things
+
+```bash
+npm install
+
+npm run test:unit                 # everything
+npm run lint
+
+npx vitest run lab/test-speed --disable-console-intercept   # cost probes
+npx vitest run lab/assertion-precision
+
+npm run dev                       # the sample app
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+The cost probes print their numbers, so `--disable-console-intercept` matters.
+
+Import cost is measured out of process, because the first import in a process
+pays for the whole graph:
+
+```bash
+./lab/test-speed/import-cost-oop.sh
+```

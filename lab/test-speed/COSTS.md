@@ -11,20 +11,21 @@ Absolute milliseconds are machine-dependent and are not the deliverable. Every
 claim below is a **ratio between two forms measured in the same run, on the same
 tree**, interleaved A-B-A-B by `ratio()` in `measure.ts`.
 
-## R — the noise floor of the instrument. Read this before any row.
+## The noise floor of the instrument. Read this before any row.
 
-**R = 1.1x on the authoring machine.** Below that ratio, `measure.ts` cannot
-distinguish two forms from noise, and **no row here or in 017 may report a
-sub-R ratio as a finding.** A probe landing under R is recorded as *too close to
-call* — never as "no difference", never as "slightly slower".
+**The noise floor is 1.1x on the authoring machine**, and the specs pin it as
+`NOISE_FLOOR`. Below that ratio, `measure.ts` cannot distinguish two forms from
+noise, and **no row here or in 017 may report a ratio under the floor as a
+finding.** A probe landing under it is recorded as *too close to call* — never
+as "no difference", never as "slightly slower".
 
-R is computed at run time by `measure.spec.ts > establishes R, the smallest ratio
-this helper can resolve on this machine`, which runs synthetic workloads at known
-cost multiples (1.1, 1.25, 1.5, 2, 3, 5) three times each and reports the
-smallest multiple it resolves within 35% on every attempt. **Your R may differ**
-— re-run the spec rather than trusting this number.
+It is computed at run time by `measure.spec.ts > finds the noise floor — the
+smallest ratio this helper can resolve on this machine`, which runs synthetic
+workloads at known cost multiples (1.1, 1.25, 1.5, 2, 3, 5) three times each and
+reports the smallest multiple it resolves within 35% on every attempt. **Your
+floor may differ** — re-run the spec rather than trusting this number.
 
-One caveat on R that matters for reading everything below: it is measured on
+One caveat that matters for reading everything below: the floor is measured on
 tight arithmetic loops, which is the friendliest possible workload for a timer.
 The DOM probes allocate and walk trees, so their real floor is somewhat worse
 than 1.1x. Ratios in the 1.1x–1.3x band here are reported, but they are the
@@ -100,7 +101,9 @@ Values are the range seen across several clean runs on the authoring machine.
 | 2 | Role query cost per *match* | 10.0–11.1µs | 8.6–9.1µs | 8.4–8.9µs | **Varies 1.2–1.3x — this is the stable unit** |
 | 3 | `within(scope)` vs `screen`, same element | 1.35x | 0.95x | 1.08–1.13x | **Killed.** `within` is never faster; at `medium` and `huge` it is too close to call |
 | 4 | 5x `getByRole` vs one `getAllByRole` + index | 6.0–6.2x | 17.7x | 17.3–18.1x | **Confirmed.** Repeated scoped lookups cost 6–18x |
-| 5 | Role query with `{ name }` vs without | 1.25–1.27x | 1.20x | 1.29–1.31x | Confirmed but small — just above R |
+| 5 | Role query with `{ name }` vs without | 1.25–1.27x | 1.20x | 1.29–1.31x | Confirmed but small — just above the floor |
+| 13 | `getByLabelText` vs `getByTestId`, same input | 25.3–26.1x | 43.4–43.6x | n/a | **Confirmed.** The label query sits at the `getByText` end, not the `getByRole` end |
+| 13 | `getByLabelText` vs `getByRole('textbox', { name })`, same input | 2.26–2.38x | 1.35–1.44x | n/a | **Confirmed.** The label query is the dearer of the two at both tiers |
 
 Row-to-test mapping:
 
@@ -111,6 +114,7 @@ Row-to-test mapping:
 | 3 | `probe 3 — within(scope) vs a screen-wide query > answers whether within() is a performance tool or only a disambiguation tool` |
 | 4 | `probe 4 — getAllByRole once vs getByRole N times > measures whether reaching for the list and indexing beats repeated lookups` |
 | 5 | `probe 5 — role query with { name } vs without > measures what accessible-name filtering adds to the role walk` |
+| 13 | `probe 13 — getByLabelText against the same input > places the label query on probe 1's scale, at the tiers that render a labelled control` |
 
 ## Notes
 
@@ -120,8 +124,8 @@ Row-to-test mapping:
 1.35x (`small`), 0.95x (`medium`), 1.08–1.13x (`huge`) —
 `within(scope).getByRole(...)` was *slower* than `screen.getByRole(...)` at
 `small`, and within the noise floor at the other two. **It was faster at none of
-them, including the largest tier.** Only the `small` result clears R; the other
-two are reported as too close to call, which is itself the answer — a
+them, including the largest tier.** Only the `small` result clears the floor;
+the other two are reported as too close to call, which is itself the answer — a
 performance tool that cannot be distinguished from doing nothing is not a
 performance tool.
 
@@ -160,6 +164,24 @@ dearest of the three — roughly 3x the cost of the role query at every tier. Wo
 recording because the folk ranking usually puts `getByRole` at the top of the
 cost list. It is not; it is in the middle.
 
+### `getByLabelText` is not the cheap accessible query
+
+Added after 011 closed, to answer a question probe 1 left open: where does the
+label query sit? **At the expensive end.** Against the *same* input it costs
+2.26–2.38x (`small`) and 1.35–1.44x (`medium`) the equivalent
+`getByRole('textbox', { name })`, putting it at 25–44x a testid lookup —
+`getByText` territory, not `getByRole` territory.
+
+The mechanism is the same one probe 2 found: RTL resolves every labelling
+construct in the container (`label[for]`, wrapping labels, `aria-labelledby`,
+`aria-label`) before it can match one, so the cost is per-candidate, not per
+tree. `huge` has no row because `/onboarding/review` renders no form control;
+no substitute element was invented to fill the cell.
+
+This does **not** make `getByLabelText` the wrong query for a form field — it is
+still the one that asserts the label wiring. It makes it a query you should not
+repeat in a loop, per probe 4.
+
 ### The cheap fix that keeps the altitude
 
 Probe 4 is the actionable one. Five `getByRole(role, { name })` calls cost 6–18x
@@ -183,7 +205,7 @@ rather than synthetic trees, which is the tier design's whole point.
 ### What the instrument could not settle
 
 - Any claim in the 1.1x–1.3x band (probe 5, probe 3 at `medium`) is at or near
-  R and is reported as measured without being leaned on.
+  the floor and is reported as measured without being leaned on.
 - Scaling in node count. The tiers span 1.42x; this is not a scaling probe and
   must not be cited as one. A real one is one component at three data volumes,
   and is follow-up work.

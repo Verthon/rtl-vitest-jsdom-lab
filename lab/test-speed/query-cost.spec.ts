@@ -2,7 +2,12 @@ import { screen, within } from '@testing-library/react'
 import { measure, ratio, formatRatio } from './measure'
 import { enclosingScope, profileOf, renderTier, TIER_NAMES, tierReady, type TierName } from './tiers'
 
-const R = 1.1
+// The smallest ratio measure.ts can tell apart from "no difference at all" on
+// this machine. A probe landing under it has not found anything — it is
+// reported as too close to call, never as "slightly slower". Derived at run
+// time by measure.spec.ts > 'finds the noise floor …'; pinned here by hand, so
+// re-run that spec on a new machine rather than trusting this number.
+const NOISE_FLOOR = 1.1
 
 const RUNS = { warmup: 5, runs: 25 }
 
@@ -28,7 +33,7 @@ async function withTier<T>(name: TierName, fn: (container: HTMLElement) => T): P
 }
 
 function verdictFor(measured: number) {
-  if (Math.abs(measured - 1) + 1 < R) return 'too close to call'
+  if (Math.abs(measured - 1) + 1 < NOISE_FLOOR) return 'too close to call'
   return measured < 1 ? 'within() is faster' : 'within() is slower'
 }
 
@@ -145,7 +150,7 @@ describe('probe 1 — getByRole vs getByText vs getByTestId', () => {
         expect(
           roleVsTestid.ratio,
           `tier ${name}: a role query should not be cheaper than a testid query`,
-        ).toBeGreaterThan(R)
+        ).toBeGreaterThan(NOISE_FLOOR)
       })
     }
   }, 60000)
@@ -264,7 +269,7 @@ describe('probe 4 — getAllByRole once vs getByRole N times', () => {
         expect(
           result.ratio,
           `tier ${name}: N scoped role queries should not be cheaper than one getAllByRole plus indexing`,
-        ).toBeGreaterThan(R)
+        ).toBeGreaterThan(NOISE_FLOOR)
       })
     }
   }, 60000)
@@ -292,8 +297,65 @@ describe('probe 5 — role query with { name } vs without', () => {
         expect(
           result.ratio,
           `tier ${name}: name filtering came out cheaper than the bare role query, which cannot be right`,
-        ).toBeGreaterThan(R)
+        ).toBeGreaterThan(NOISE_FLOOR)
       })
     }
   }, 60000)
 })
+
+// The label an `htmlFor`/`id` pair puts on a real input, per tier. `huge`
+// (/onboarding/review) is absent deliberately: it renders no form control at
+// all — it is nine summary cards — so it cannot host this probe, and no
+// substitute element was invented to give it a row.
+const LABELLED: [TierName, string][] = [
+  ['small', 'Filter by name'],
+  ['medium', 'First name'],
+]
+
+/* eslint-disable testing-library/no-test-id-queries */
+describe('probe 13 — getByLabelText against the same input', () => {
+  it('places the label query on probe 1’s scale, at the tiers that render a labelled control', async () => {
+    for (const [name, label] of LABELLED) {
+      await withTier(name, (container) => {
+        const scope = within(container)
+        const input = scope.getByLabelText(label)
+        input.setAttribute('data-testid', 'lab-label-target')
+
+        const labelVsTestid = ratio(
+          () => {
+            scope.getByLabelText(label)
+          },
+          () => {
+            scope.getByTestId('lab-label-target')
+          },
+          RUNS,
+        )
+
+        const roleVsTestid = ratio(
+          () => {
+            scope.getByRole('textbox', { name: label })
+          },
+          () => {
+            scope.getByTestId('lab-label-target')
+          },
+          RUNS,
+        )
+
+        console.log(
+          `[probe13 ${name}] label/testid=${formatRatio(labelVsTestid.ratio)} role/testid=${formatRatio(roleVsTestid.ratio)} — label/role=${formatRatio(labelVsTestid.ratio / roleVsTestid.ratio)}`,
+        )
+
+        expect(
+          labelVsTestid.ratio,
+          `tier ${name}: getByLabelText came out no dearer than a testid lookup, so the measurement is not reaching the label resolution`,
+        ).toBeGreaterThan(NOISE_FLOOR)
+
+        expect(
+          labelVsTestid.ratio / roleVsTestid.ratio,
+          `tier ${name}: getByLabelText is no longer dearer than getByRole('textbox', { name }) against the same input — the recorded ordering is stale`,
+        ).toBeGreaterThan(NOISE_FLOOR)
+      })
+    }
+  }, 60000)
+})
+/* eslint-enable testing-library/no-test-id-queries */

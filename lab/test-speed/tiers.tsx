@@ -88,6 +88,57 @@ export function countTestIds(container: HTMLElement) {
   return container.querySelectorAll('[data-testid]').length
 }
 
+/**
+ * Ancestor count from `element` up to the document root. jest-dom's toBeVisible
+ * recurses over exactly this chain, calling getComputedStyle at every level, so
+ * this is the number its cost is predicted to track.
+ */
+export function depthOf(element: Element): number {
+  let depth = 0
+  let current: Element | null = element
+  while (current) {
+    depth += 1
+    current = current.parentElement
+  }
+  return depth
+}
+
+/** The shallowest and deepest elements matching `selector`, with their depths. */
+export function byDepth(container: HTMLElement, selector: string) {
+  const ranked = [...container.querySelectorAll(selector)]
+    .map((element) => ({ element: element as HTMLElement, depth: depthOf(element) }))
+    .sort((left, right) => left.depth - right.depth)
+
+  return { shallowest: ranked[0], deepest: ranked[ranked.length - 1], count: ranked.length }
+}
+
+/** Hides `element` the way a real app would, for the non-equivalence pin. */
+export function hideElement(element: HTMLElement) {
+  element.style.display = 'none'
+}
+
+/**
+ * Appends a chain of nested divs to `container` and returns the leaf, so a probe
+ * can vary ancestor depth over a range real component trees do not span. This is
+ * deliberately synthetic: it isolates the cost of jest-dom's ancestor walk from
+ * everything a real tier renders.
+ */
+export function nestedChain(container: HTMLElement, links: number): HTMLElement {
+  let current = container
+
+  for (let index = 0; index < links; index += 1) {
+    const next = document.createElement('div')
+    current.appendChild(next)
+    current = next
+  }
+
+  const leaf = document.createElement('span')
+  leaf.textContent = 'lab-depth-leaf'
+  current.appendChild(leaf)
+
+  return leaf
+}
+
 export type RenderedTier = {
   name: TierName
   container: HTMLElement

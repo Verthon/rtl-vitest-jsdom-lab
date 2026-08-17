@@ -1,9 +1,14 @@
 import { waitFor, within } from '@testing-library/react'
 import { userEvent } from '@testing-library/user-event'
-import { measure, ratio, formatRatio } from './measure'
+import { measure, formatRatio } from './measure'
 import { profileOf, renderTier, TIER_NAMES, tierReady, type TierName } from './tiers'
 
-const R = 1.1
+// The smallest ratio measure.ts can tell apart from "no difference at all" on
+// this machine. A probe landing under it has not found anything — it is
+// reported as too close to call, never as "slightly slower". Derived at run
+// time by measure.spec.ts > 'finds the noise floor …'; pinned here by hand, so
+// re-run that spec on a new machine rather than trusting this number.
+const NOISE_FLOOR = 1.1
 
 const RUNS = { warmup: 5, runs: 25 }
 const ASYNC_RUNS = { warmup: 2, runs: 10 }
@@ -82,7 +87,7 @@ async function ratioAsync(a: () => Promise<unknown>, b: () => Promise<unknown>) 
 }
 
 function verdict(measured: number) {
-  if (Math.abs(measured - 1) + 1 < R) return 'too close to call'
+  if (Math.abs(measured - 1) + 1 < NOISE_FLOOR) return 'too close to call'
   return measured > 1 ? 'first form is dearer' : 'second form is dearer'
 }
 
@@ -372,7 +377,7 @@ describe('probe 9 — userEvent.setup() default delay', () => {
       expect(
         result.ratio,
         "userEvent's default inter-character delay came out no dearer than delay:null, so either the delay is no longer applied or the measurement is not reaching it",
-      ).toBeGreaterThan(R)
+      ).toBeGreaterThan(NOISE_FLOOR)
     })
   }, 60000)
 })
@@ -406,31 +411,73 @@ describe('probe 10 — one MSW round-trip', () => {
     })
   }, 60000)
 
-  it('tests tier-independence by running the round-trip under two tiers, and reports the spread against R rather than assuming it', async () => {
-    const medians: Record<string, number> = {}
+  it('tests tier-independence over counterbalanced rounds, because two sequential blocks measure warmup as well as tier', async () => {
+    const TIERS = ['small', 'huge'] as const
 
-    for (const name of ['small', 'huge'] as const) {
+    const blockUnder = async (name: (typeof TIERS)[number]) => {
+      let median = 0
       await withTier(name, async () => {
-        const measurement = await measureAsync(async () => {
-          const response = await fetch(
-            `${import.meta.env.VITE_API_BASE_URL}/employees?page=1&perPage=10`,
-          )
-          await response.json()
-        })
-        medians[name] = measurement.median
+        median = (
+          await measureAsync(async () => {
+            const response = await fetch(
+              `${import.meta.env.VITE_API_BASE_URL}/employees?page=1&perPage=10`,
+            )
+            await response.json()
+          })
+        ).median
       })
+      return median
     }
 
-    const spread = Math.max(medians.small, medians.huge) / Math.min(medians.small, medians.huge)
-    const tierIndependent = spread < R
+    // Discarded. The first fetch block in a worker costs ~1.9x every later one
+    // and measureAsync's two warmup iterations do not absorb it: measured
+    // 0.307ms for the first block against 0.163ms for every block after it,
+    // with the same inflation on whichever tier happened to go first and none
+    // on a block with no tier mounted at all. The single-block form of this
+    // probe reported that warmup as tier dependence, at 1.8-2.5x.
+    //
+    // Removing this line does NOT redden the test — checked. The median across
+    // rounds below already absorbs one cold block, which is what a median is
+    // for. It is kept so that under a loaded worker pool, where more than one
+    // early block can be cold, no cold block reaches the recorded set at all.
+    await blockUnder('small')
+
+    // Counterbalanced: the tier that leads alternates, so any residual
+    // within-round drift lands on both tiers rather than always on the one
+    // measured first. Every other probe in this file gets that for free from
+    // ratioAsync, which interleaves its two forms inside one loop; this is the
+    // one comparison that cannot, because its two forms need different trees
+    // mounted, and it is the one that reported the drift as a finding.
+    const ORDERS = [TIERS, [...TIERS].reverse(), TIERS] as const
+
+    const rounds: Record<string, number>[] = []
+    for (const order of ORDERS) {
+      const measured: Record<string, number> = {}
+      for (const name of order) {
+        measured[name] = await blockUnder(name)
+      }
+      rounds.push(measured)
+    }
+
+    const medianAcrossRounds = (name: string) => {
+      const values = rounds.map((entry) => entry[name]).sort((left, right) => left - right)
+      return values[Math.floor(values.length / 2)]
+    }
+
+    const small = medianAcrossRounds('small')
+    const huge = medianAcrossRounds('huge')
+    const spread = Math.max(small, huge) / Math.min(small, huge)
+    const tierIndependent = spread < NOISE_FLOOR
 
     console.log(
-      `[probe10] round-trip under small=${medians.small.toFixed(3)}ms vs huge=${medians.huge.toFixed(3)}ms — spread ${formatRatio(spread)} against R=${R}x, so tier-independence is ${tierIndependent ? 'shown' : 'NOT shown — the spread sits at or above the noise floor, and COSTS.md must say so rather than claiming independence'}`,
+      `[probe10] round-trip per round (small/huge): ${rounds
+        .map((entry) => `${entry.small.toFixed(3)}/${entry.huge.toFixed(3)}`)
+        .join(', ')} — medians small=${small.toFixed(3)}ms vs huge=${huge.toFixed(3)}ms, spread ${formatRatio(spread)} against a ${NOISE_FLOOR}x noise floor, so tier-independence is ${tierIndependent ? 'shown' : 'NOT shown — the spread sits at or above the noise floor, and COSTS.md must say so rather than claiming independence'}`,
     )
 
     expect(
       spread,
-      'the MSW round-trip cost differs across tiers by substantially more than the noise floor, so it is genuinely tier-dependent and COSTS.md must report it per tier rather than as one floor',
+      'the MSW round-trip cost differs across tiers by substantially more than the noise floor even with the tier order counterbalanced and the cold first block discarded, so it is genuinely tier-dependent and COSTS.md must report it per tier rather than as one floor',
     ).toBeLessThan(1.5)
   }, 60000)
 })

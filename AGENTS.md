@@ -19,6 +19,9 @@ rules a linter could express.
   `lab/assertion-precision/` measures what a failing assertion actually prints
   and how much of that oxlint already enforces; it backs the skill of the same
   name. See `lab/assertion-precision/MATRIX.md`.
+- `RTL_COST.md` — the one-page summary of what RTL, jest-dom and happy-dom
+  actually cost, one to two sentences per finding. Every line traces to a probe
+  in `lab/test-speed/`; `lab/test-speed/COSTS.md` is the full write-up.
 - `CONVENTIONS.md` — structure, API/mock contract, and verification. Read
   before writing code.
 - `tasks/NNN-*.md` — scoped work items. Only do the one you are pointed at.

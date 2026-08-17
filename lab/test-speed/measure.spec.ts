@@ -70,7 +70,7 @@ describe('measure', () => {
     expect(result.ratio).toBeLessThan(2)
   })
 
-  it('establishes R, the smallest ratio this helper can resolve on this machine', () => {
+  it('finds the noise floor — the smallest ratio this helper can resolve on this machine', () => {
     const candidates = [1.1, 1.25, 1.5, 2, 3, 5]
     const TOLERANCE = 0.35
     const ATTEMPTS = 3
@@ -97,10 +97,12 @@ describe('measure', () => {
       'measure.ts resolved none of the synthetic ratios up to 5x — the helper is broken, not the machine',
     ).toBeDefined()
 
-    const R = firstResolved!.k
-    console.log(`[measure] R (noise floor) = ${R}x on this machine`)
+    const noiseFloor = firstResolved!.k
+    console.log(
+      `[measure] noise floor = ${noiseFloor}x on this machine — ratios below this are not findings. The specs pin it as NOISE_FLOOR; update them if this disagrees.`,
+    )
 
-    expect(R).toBeLessThanOrEqual(3)
+    expect(noiseFloor).toBeLessThanOrEqual(3)
   })
 
   it('interleaves the two forms rather than batching them', () => {

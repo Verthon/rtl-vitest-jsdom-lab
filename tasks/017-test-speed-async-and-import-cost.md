@@ -19,18 +19,19 @@ measured yet. 011 measured it — use the number.
 
 ## The noise floor is binding here
 
-011 established **R**, the smallest ratio `measure.ts` can distinguish from
-noise on the authoring machine, and recorded it in `COSTS.md`'s header.
+011 established the **noise floor**, the smallest ratio `measure.ts` can
+distinguish from noise on the authoring machine, and recorded it in
+`COSTS.md`'s header.
 
-**No probe in this task may report a ratio below R as a finding.** A probe
-landing under R is recorded as "too close to call" with an empty ratio — never
-as "no difference", never as "slightly slower". Probe 6 in particular is likely
-to land there, and reporting "findBy is 1.1x faster" from an instrument that
+**No probe in this task may report a ratio below the noise floor as a
+finding.** A probe landing under it is recorded as "too close to call" with an
+empty ratio — never as "no difference", never as "slightly slower". Probe 6 in
+particular is likely to land there, and reporting "findBy is 1.1x faster" from an instrument that
 cannot resolve 1.1x would be exactly the folklore-laundering this workstream
 exists to prevent.
 
-If R is large enough that several probes here are unresolvable, that is a
-finding about the instrument and it goes in `COSTS.md`. Do not tighten the
+If the floor is large enough that several probes here are unresolvable, that
+is a finding about the instrument and it goes in `COSTS.md`. Do not tighten the
 tolerance to make results appear.
 
 ## Scope — decided, not a menu
@@ -49,7 +50,7 @@ for probe 7, which is a floor and cannot be a ratio.
 Probes 9 and 10 are plausibly tier-independent (`userEvent` delay is a constant;
 one MSW round-trip is one round-trip); if you conclude a probe is
 tier-independent, prove it by running it at two tiers and showing the ratio is
-under R, rather than asserting it.
+under the noise floor, rather than asserting it.
 
 ## Layout
 
@@ -73,7 +74,7 @@ thinnest.
    meaningful or whether `prefer-find-by` is purely a readability rule. Note
    `MATRIX.md` already pins `prefer-find-by` as lint-enforced, so this is
    measuring *why* the rule exists, not discovering the rule. Expect this to land
-   under R; that is a publishable answer and it makes the lint rule a readability
+   under the noise floor; that is a publishable answer and it makes the lint rule a readability
    rule, which is worth stating.
 
 7. **The polling floor.** Resolve a condition that is already true versus one
@@ -208,10 +209,10 @@ undercuts the coming skill, write it that way and say so in `HANDOFF.md`.
 
 ## Steps
 
-1. **Re-run 011's gates first** and confirm `measure.spec.ts` still passes and R
-   is still what `COSTS.md` says. If R has drifted on your machine, record the
-   new value next to 011's rather than overwriting it — a second data point on
-   the instrument's portability is worth having.
+1. **Re-run 011's gates first** and confirm `measure.spec.ts` still passes and
+   the noise floor is still what `COSTS.md` says. If it has drifted on your
+   machine, record the new value next to 011's rather than overwriting it — a
+   second data point on the instrument's portability is worth having.
 
 2. **Write `async-cost.spec.ts`** (probes 6–10). Do probe 8 after probe 6 and 7,
    since it composes them, and cross-check it against 011's probe 2.
@@ -241,13 +242,14 @@ undercuts the coming skill, write it that way and say so in `HANDOFF.md`.
 
 ## Gates
 
-- No probe reports a ratio below R as anything other than "too close to call".
+- No probe reports a ratio below the noise floor as anything other than "too
+  close to call".
 - Every row in `COSTS.md` is backed by a named test in `lab/test-speed/`, or is
   explicitly flagged as unbacked narrative (probe 7's floor and probe 11's
   out-of-process variant are the only rows permitted to be unbacked, and each
   must say why).
 - Every probe reports at all three tiers, or proves tier-independence by showing
-  a cross-tier ratio under R.
+  a cross-tier ratio under the noise floor.
 - Probe 7 asserts against RTL's configured interval, not a hard-coded 50ms, or
   is recorded as unbacked.
 - Probe 8 is cross-checked against 011's probe 2, and `COSTS.md` states whether
